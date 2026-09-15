@@ -45,21 +45,56 @@ export function parseMetaCsv(text: string): ResultadoCsv {
   const perMatch = text.match(/Relat[oó]rio de cobran[cç]a:\s*([\d/]+)\s*a\s*([\d/]+)/i);
   const periodo = perMatch ? `${perMatch[1]} a ${perMatch[2]}` : "—";
 
-  const headerIdx = lines.findIndex((l) => l.indexOf("ID da transa") !== -1);
-  if (headerIdx === -1) return { ok: false, tipo: "invalido" };
-
+  // O Meta varia o formato da tabela: quando um período tem várias formas de
+  // pagamento misturadas, a coluna "Forma de pagamento" vem em cada linha
+  // (Data,ID da transação,Forma de pagamento,Valor,Moeda). Quando o período
+  // inteiro usa uma única forma de pagamento (ou quando há mais de uma —
+  // ex.: cartão + "Crédito para anúncio" — cada uma vira o seu próprio
+  // bloco), a coluna some da tabela e aparece antes, numa linha própria
+  // ("Forma de pagamento: Visa ···· 4400"), podendo se repetir várias vezes
+  // no mesmo arquivo — um bloco por forma de pagamento.
   const rows: LinhaCsv[] = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
+  let formaAtual = "";
+  let dentroTabela = false;
+  let colFormaIdx = -1;
+  let encontrouTabela = false;
+
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line || !line.trim()) continue;
-    if (line.indexOf("Valor total") !== -1) break;
+
+    const formaMatch = line.match(/^Forma de pagamento:\s*(.+)$/i);
+    if (formaMatch) {
+      formaAtual = formaMatch[1].trim();
+      dentroTabela = false;
+      continue;
+    }
+
+    if (line.indexOf("ID da transa") !== -1) {
+      const cabecalho = parseCsvLine(line).map((c) => c.trim().toLowerCase());
+      colFormaIdx = cabecalho.findIndex((c) => c.startsWith("forma de pagamento"));
+      dentroTabela = true;
+      encontrouTabela = true;
+      continue;
+    }
+
+    if (!dentroTabela) continue;
+
+    if (line.indexOf("Valor total") !== -1) {
+      dentroTabela = false;
+      continue;
+    }
+
     const cols = parseCsvLine(line);
-    if (cols.length < 5 || !cols[0] || !cols[1]) continue;
-    const valor = parseValorBR(cols[3]);
+    if (!cols[0] || !cols[1]) continue;
+    const valorIdx = colFormaIdx !== -1 ? 3 : 2;
+    const valor = parseValorBR(cols[valorIdx]);
     if (isNaN(valor)) continue;
-    rows.push({ data: cols[0], id: cols[1], cartao: cols[2], valor });
+    const cartao = colFormaIdx !== -1 ? cols[colFormaIdx] : formaAtual;
+    rows.push({ data: cols[0], id: cols[1], cartao, valor });
   }
 
+  if (!encontrouTabela) return { ok: false, tipo: "invalido" };
   if (rows.length === 0) return { ok: false, tipo: "vazio" };
 
   return { ok: true, contaId, periodo, rows };
