@@ -5,11 +5,14 @@ export type ResultadoCsv =
   | { ok: false; tipo: "invalido" | "vazio" | "conta_desconhecida"; contaId?: string; periodo?: string; rows?: LinhaCsv[] };
 
 /** O relatório do Meta também traz formas de pagamento que não são cartão
- * (ex.: "Crédito para anúncio", saldo de cupom). O RT PayFlow só controla
- * cartão, então essas linhas são ignoradas na importação. Um cartão real
- * sempre aparece mascarado terminando em 4 dígitos ("Visa ···· 4400"). */
-function pareceCartao(formaPagamento: string): boolean {
-  return /\d{4}\s*$/.test(formaPagamento.trim());
+ * (saldo de cupom/crédito de anúncio, não cobrança real no cartão). O RT
+ * PayFlow só controla cartão, então essas linhas são ignoradas na
+ * importação — mas só essa forma específica; qualquer outra coisa (mesmo
+ * "N/D", quando o Meta não identifica o cartão de uma cobrança real) segue
+ * pro fluxo normal de "cartão não cadastrado" pra não sumir dinheiro. */
+const FORMAS_IGNORADAS = new Set(["crédito para anúncio", "credito para anuncio"]);
+function formaIgnorada(formaPagamento: string): boolean {
+  return FORMAS_IGNORADAS.has(formaPagamento.trim().toLowerCase());
 }
 
 function parseCsvLine(line: string): string[] {
@@ -65,6 +68,7 @@ export function parseMetaCsv(text: string): ResultadoCsv {
   let formaAtual = "";
   let dentroTabela = false;
   let colFormaIdx = -1;
+  let colValorIdx = -1;
   let encontrouTabela = false;
   let linhasIgnoradas = 0;
 
@@ -80,8 +84,12 @@ export function parseMetaCsv(text: string): ResultadoCsv {
     }
 
     if (line.indexOf("ID da transa") !== -1) {
+      // As colunas mudam de posição entre exportações do Meta (às vezes tem
+      // uma "Descrição da transação" no meio, às vezes não), então a posição
+      // de cada uma é sempre lida do cabeçalho, nunca fixa por índice.
       const cabecalho = parseCsvLine(line).map((c) => c.trim().toLowerCase());
       colFormaIdx = cabecalho.findIndex((c) => c.startsWith("forma de pagamento"));
+      colValorIdx = cabecalho.findIndex((c) => c === "valor");
       dentroTabela = true;
       encontrouTabela = true;
       continue;
@@ -95,12 +103,11 @@ export function parseMetaCsv(text: string): ResultadoCsv {
     }
 
     const cols = parseCsvLine(line);
-    if (!cols[0] || !cols[1]) continue;
-    const valorIdx = colFormaIdx !== -1 ? 3 : 2;
-    const valor = parseValorBR(cols[valorIdx]);
+    if (!cols[0] || !cols[1] || colValorIdx === -1) continue;
+    const valor = parseValorBR(cols[colValorIdx]);
     if (isNaN(valor)) continue;
     const cartao = colFormaIdx !== -1 ? cols[colFormaIdx] : formaAtual;
-    if (!pareceCartao(cartao)) {
+    if (formaIgnorada(cartao)) {
       linhasIgnoradas++;
       continue;
     }
