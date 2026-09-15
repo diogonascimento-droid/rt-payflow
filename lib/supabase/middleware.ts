@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const DOMINIO_PERMITIDO = "@rtpublicity.com.br";
-const ROTAS_PUBLICAS = ["/login", "/acesso-negado", "/auth/callback"];
+const ROTAS_PUBLICAS = ["/login", "/auth/callback"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -37,10 +37,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && !user.email?.toLowerCase().endsWith(DOMINIO_PERMITIDO) && path !== "/acesso-negado") {
+  if (user && !user.email?.toLowerCase().endsWith(DOMINIO_PERMITIDO)) {
     await supabase.auth.signOut();
     const url = request.nextUrl.clone();
-    url.pathname = "/acesso-negado";
+    url.pathname = "/login";
+    url.searchParams.set("erro", "dominio");
     return NextResponse.redirect(url);
   }
 

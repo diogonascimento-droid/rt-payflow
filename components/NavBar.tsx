@@ -20,7 +20,7 @@ export function NavBar({ right }: { right?: React.ReactNode }) {
   return (
     <div className="bg-ink text-text-on-dark px-7 py-3.5 flex items-center gap-5 flex-wrap">
       <Link href="/" className="block shrink-0">
-        <Image src="/rt-payflow-logo.svg" alt="RT PayFlow" width={112} height={27} priority />
+        <Image src="/rt-payflow-logo.png" alt="RT PayFlow" width={112} height={56} priority />
       </Link>
       <div className="flex gap-0.5 text-[13.5px] flex-wrap">
         {ITENS.filter((item) => isEditor || !item.somenteEditor).map((item) => {

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       const email = data.user?.email?.toLowerCase() || "";
       if (!email.endsWith("@rtpublicity.com.br")) {
         await supabase.auth.signOut();
-        return NextResponse.redirect(`${origin}/acesso-negado`);
+        return NextResponse.redirect(`${origin}/login?erro=dominio`);
       }
       return NextResponse.redirect(`${origin}/`);
     }

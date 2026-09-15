@@ -69,7 +69,7 @@ export default function RelatorioPage() {
         >
           <div className="flex items-end justify-between gap-4 border-b-2 border-[#141412] pb-2.5">
             <div className="flex items-center gap-3">
-              <img src="/rt-payflow-logo.svg" alt="RT PayFlow" style={{ height: 26 }} />
+              <img src="/rt-payflow-logo.png" alt="RT PayFlow" style={{ height: 26 }} />
               <div className="w-px h-[26px] bg-[#B8B8B0]" />
               <div>
                 <div className="font-mono text-[9px] tracking-[0.1em] uppercase text-[#54544A]">RT Publicity · uso interno</div>
