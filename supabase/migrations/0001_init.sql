@@ -82,19 +82,46 @@ create policy "anon full access" on cartoes for all using (true) with check (tru
 create policy "anon full access" on lotes_importacao for all using (true) with check (true);
 create policy "anon full access" on lancamentos for all using (true) with check (true);
 
--- Seed inicial dos cadastros (mesmos valores do mock usado no protótipo).
+-- Seed inicial dos cadastros — dados reais da RT Publicity (não são mais
+-- placeholder). "id_conta" fica vazio pra Meta porque ainda não temos o ID
+-- de conta do Gerenciador de Anúncios de cada uma — preencha em Cadastros
+-- quando for configurar a importação de CSV por conta.
 insert into plataformas (nome, ativa) values
   ('Meta', true), ('Google', true), ('TikTok', true), ('LinkedIn', true)
 on conflict (nome) do nothing;
 
 insert into contas (nome, plataforma, cliente, id_conta, ativa) values
-  ('RT Mídia 01', 'Meta', 'Vários clientes (conta agrupada)', '100000000000001', true),
-  ('RT Mídia 02', 'Meta', 'Vários clientes (conta agrupada)', '100000000000002', true),
-  ('RT Mídia 03', 'Meta', 'Vários clientes (conta agrupada)', '100000000000003', true)
+  ('Conta 01', 'Meta', 'Vários clientes (conta agrupada)', '', true),
+  ('Conta 02', 'Meta', 'Vários clientes (conta agrupada)', '', true),
+  ('Conta 03', 'Meta', 'Vários clientes (conta agrupada)', '', true),
+  ('Conta 04', 'Meta', 'Vários clientes (conta agrupada)', '', true),
+  ('Conta 05', 'Meta', 'Vários clientes (conta agrupada)', '', true),
+  ('Meta - Nani Sound', 'Meta', 'Nani Sound', '', true),
+  ('GA - APV', 'Google', '', '', true),
+  ('GA - APS', 'Google', '', '', true),
+  ('GA - AP', 'Google', '', '', true),
+  ('GA - APO', 'Google', '', '', true),
+  ('GA - APSO', 'Google', '', '', true),
+  ('GA - APL', 'Google', '', '', true),
+  ('GA - APAC', 'Google', '', '', true),
+  ('GA - BK Fitness', 'Google', 'BK Fitness', '', true),
+  ('GA - Vinilseg', 'Google', 'Vinilseg', '', true),
+  ('GA - Nani Sound', 'Google', 'Nani Sound', '', true),
+  ('GA - Eletroinox', 'Google', 'Eletroinox', '', true)
 on conflict (nome, plataforma) do nothing;
 
-insert into cartoes (bandeira, final4, apelido, fechamento, vencimento, ativa) values
-  ('Visa', '4400', 'Cartão principal · mídia', 5, 12, true),
-  ('Visa', '0158', 'Cartão mídia 2', 5, 12, true),
-  ('Visa', '3640', 'Cartão mídia 3', 10, 17, true)
+insert into cartoes (bandeira, final4, apelido, ativa) values
+  ('Visa', '1846', '', true),
+  ('Visa', '7412', '', true),
+  ('Visa', '2801', '', true),
+  ('Visa', '4863', '', true),
+  ('MasterCard', '4119', '', true),
+  ('MasterCard', '7276', '', true),
+  ('Visa', '3640', '', true),
+  ('MasterCard', '8032', '', true),
+  ('Visa', '4075', '', true),
+  ('Visa', '0158', '', true),
+  ('MasterCard', '2638', '', true),
+  ('Visa', '4400', '', true),
+  ('MasterCard', '7031', '', true)
 on conflict (bandeira, final4) do nothing;

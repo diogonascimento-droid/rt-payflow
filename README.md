@@ -15,11 +15,15 @@ Abra [http://localhost:3000](http://localhost:3000).
 
 ## Banco de dados (Supabase)
 
-O schema fica em [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-Pra aplicar: abra o SQL Editor do seu projeto no painel do Supabase e rode o
-conteúdo desse arquivo. Ele cria as tabelas (`lancamentos`, `lotes_importacao`,
-`contas`, `cartoes`, `plataformas`), ativa RLS com política aberta (sem login
-no MVP) e faz o seed inicial dos cadastros.
+O schema fica em [`supabase/migrations/`](supabase/migrations). Pra aplicar:
+abra o SQL Editor do seu projeto no painel do Supabase e rode, **nessa
+ordem**:
+
+1. `0001_init.sql` — cria as tabelas (`lancamentos`, `lotes_importacao`,
+   `contas`, `cartoes`, `plataformas`), ativa RLS com política aberta (sem
+   login no MVP) e faz o seed dos cadastros reais (contas e cartões atuais).
+2. `0002_seed_lancamentos.sql` — backfill dos 261 lançamentos históricos
+   (dez/2025–jan/2026) que já existiam na planilha, pra não começar do zero.
 
 ## Telas
 
