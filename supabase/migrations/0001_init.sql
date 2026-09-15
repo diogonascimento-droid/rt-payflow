@@ -54,7 +54,7 @@ create table if not exists lancamentos (
   plataforma text not null,
   conta text not null,
   cartao text not null,
-  valor numeric(14,2) not null check (valor > 0),
+  valor numeric(14,2) not null check (valor <> 0),
   origem text not null check (origem in ('manual', 'csv')),
   obs text,
   id_transacao_externa text unique,
