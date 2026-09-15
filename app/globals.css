@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+:root {
+  --color-ink: #101210;
+  --color-ink-2: #1f2320;
+  --color-ink-3: #3a413c;
+  --color-workspace: #f5f6f3;
+  --color-surface: #ffffff;
+  --color-border: #e0e3dd;
+  --color-divider: #edefea;
+  --color-input-border: #c8ccc5;
+
+  --color-text-strong: #101210;
+  --color-text-body: #1f2320;
+  --color-text-muted: #4a524c;
+  --color-text-faint: #707a72;
+  --color-text-faint-2: #8a938b;
+  --color-text-on-dark: #f2f4f0;
+  --color-text-on-dark-muted: #98a09a;
+  --color-text-on-dark-faint: #8a938b;
+
+  --color-lima-marca: #dcc110;
+  --color-lima-ui: #ebcd00;
+
+  --color-success: #3e6b49;
+  --color-success-bg: #ebf3e9;
+  --color-neutral-badge: #4a524c;
+  --color-neutral-badge-bg: #eff1ec;
+  --color-warning: #6b5900;
+  --color-warning-bg: #fff9e0;
+  --color-warning-border: #e6d68a;
+  --color-danger: #8e2f1c;
+  --color-danger-strong: #c64a32;
+  --color-danger-bg: #fcf3f0;
+  --color-danger-border: #e3c6be;
+
+  --font-display: var(--font-bebas-neue), "Bebas Neue", sans-serif;
+  --font-heading: var(--font-archivo), Archivo, sans-serif;
+  --font-body: var(--font-ubuntu), Ubuntu, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", monospace;
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-ink-2: var(--color-ink-2);
+  --color-ink-3: var(--color-ink-3);
+  --color-workspace: var(--color-workspace);
+  --color-surface: var(--color-surface);
+  --color-border: var(--color-border);
+  --color-divider: var(--color-divider);
+  --color-input-border: var(--color-input-border);
+
+  --color-text-strong: var(--color-text-strong);
+  --color-text-body: var(--color-text-body);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-faint: var(--color-text-faint);
+  --color-text-faint-2: var(--color-text-faint-2);
+  --color-text-on-dark: var(--color-text-on-dark);
+  --color-text-on-dark-muted: var(--color-text-on-dark-muted);
+  --color-text-on-dark-faint: var(--color-text-on-dark-faint);
+
+  --color-lima-marca: var(--color-lima-marca);
+  --color-lima-ui: var(--color-lima-ui);
+
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-neutral-badge: var(--color-neutral-badge);
+  --color-neutral-badge-bg: var(--color-neutral-badge-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-warning-border: var(--color-warning-border);
+  --color-danger: var(--color-danger);
+  --color-danger-strong: var(--color-danger-strong);
+  --color-danger-bg: var(--color-danger-bg);
+  --color-danger-border: var(--color-danger-border);
+
+  --font-display: var(--font-display);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-btn: 7px;
+  --radius-card: 8px;
+  --radius-pill: 99px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-workspace);
+  color: var(--color-text-body);
+  font-family: var(--font-body);
+}
+
+a {
+  color: var(--color-text-muted);
+}
+a:hover {
+  color: var(--color-text-strong);
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: var(--font-body);
+}
+
+@keyframes rtpulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+.animate-rtpulse {
+  animation: rtpulse 1.4s ease-in-out infinite;
+}
+
+@keyframes rtup {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-rtup {
+  animation: rtup 160ms ease-out;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
