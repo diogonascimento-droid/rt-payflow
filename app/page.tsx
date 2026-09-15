@@ -16,7 +16,7 @@ import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 export default function VisaoGeralPage() {
   const { isEditor } = useAuth();
   const { lancamentos, carregando, erro, recarregar } = useLancamentos();
-  const period = usePeriod();
+  const period = usePeriod(undefined, useMemo(() => lancamentos.map((l) => l.data), [lancamentos]));
   const [filtroCartao, setFiltroCartao] = useState<string | null>(null);
   const [buscaGrupos, setBuscaGrupos] = useState("");
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});

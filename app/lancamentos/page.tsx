@@ -35,7 +35,7 @@ export default function LancamentosPage() {
     return mapa;
   }, [contas]);
   const CARTAO_NOMES = useMemo(() => cartoes.map(cartaoRotulo), [cartoes]);
-  const period = usePeriod();
+  const period = usePeriod(undefined, useMemo(() => lancamentos.map((l) => l.data), [lancamentos]));
   const [plataforma, setPlataforma] = useState("Todas");
   const [conta, setConta] = useState("");
   const [cartao, setCartao] = useState("");

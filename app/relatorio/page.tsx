@@ -12,7 +12,7 @@ import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 
 export default function RelatorioPage() {
   const { lancamentos, carregando, erro, recarregar } = useLancamentos();
-  const period = usePeriod();
+  const period = usePeriod(undefined, useMemo(() => lancamentos.map((l) => l.data), [lancamentos]));
   const doPeriodo = useMemo(
     () => filtrarPorPeriodo(lancamentos, period.periodoInicio, period.periodoFim),
     [lancamentos, period.periodoInicio, period.periodoFim]

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { fmtData, mesmoDia, MESES } from "./format";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { fmtData, mesmoDia, MESES, parseBR } from "./format";
 
 const HOJE = new Date();
 
@@ -25,7 +25,7 @@ function gradeDoMes(mesExibido: Date): (Date | null)[] {
   return celulas;
 }
 
-export function usePeriod(inicial?: { inicio: Date; fim: Date }) {
+export function usePeriod(inicial?: { inicio: Date; fim: Date }, datasDisponiveis?: string[]) {
   const inicioPadrao = inicial?.inicio ?? new Date(HOJE.getFullYear(), HOJE.getMonth(), 1);
   const fimPadrao = inicial?.fim ?? new Date(HOJE.getFullYear(), HOJE.getMonth() + 1, 0);
 
@@ -76,6 +76,23 @@ export function usePeriod(inicial?: { inicio: Date; fim: Date }) {
     const fim = calFim ?? ini;
     definirIntervalo(ini < fim ? ini : fim, ini < fim ? fim : ini, true);
   }, [calInicio, calFim, periodoInicio, definirIntervalo]);
+
+  const ajustouAutomaticamente = useRef(false);
+  useEffect(() => {
+    if (ajustouAutomaticamente.current || inicial) return;
+    if (!datasDisponiveis || datasDisponiveis.length === 0) return;
+    ajustouAutomaticamente.current = true;
+    const maisRecente = datasDisponiveis.reduce(
+      (max, s) => (parseBR(s) > max ? parseBR(s) : max),
+      parseBR(datasDisponiveis[0])
+    );
+    definirIntervalo(
+      new Date(maisRecente.getFullYear(), maisRecente.getMonth(), 1),
+      new Date(maisRecente.getFullYear(), maisRecente.getMonth() + 1, 0),
+      false
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasDisponiveis]);
 
   const celulas = useMemo(
     () =>
