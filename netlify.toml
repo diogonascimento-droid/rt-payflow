@@ -1,5 +1,12 @@
 [build]
   command = "npm run build"
 
+[build.environment]
+  # NEXT_PUBLIC_* são valores públicos por design (o anon key do Supabase é
+  # protegido pelas políticas de RLS, não por sigilo) — o scanner de secrets
+  # do Netlify os detecta como falso positivo por aparecerem no bundle do
+  # navegador, que é o comportamento esperado.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
