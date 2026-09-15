@@ -20,10 +20,35 @@ abra o SQL Editor do seu projeto no painel do Supabase e rode, **nessa
 ordem**:
 
 1. `0001_init.sql` — cria as tabelas (`lancamentos`, `lotes_importacao`,
-   `contas`, `cartoes`, `plataformas`), ativa RLS com política aberta (sem
-   login no MVP) e faz o seed dos cadastros reais (contas e cartões atuais).
+   `contas`, `cartoes`, `plataformas`) e faz o seed dos cadastros reais
+   (contas e cartões atuais).
 2. `0002_seed_lancamentos.sql` — backfill dos 261 lançamentos históricos
    (dez/2025–jan/2026) que já existiam na planilha, pra não começar do zero.
+3. `0003_auth.sql` — troca o acesso aberto (chave anon) por login: só conta
+   Google `@rtpublicity.com.br` lê os dados, e só quem está na tabela
+   `editores` pode criar/editar/excluir/importar. **Antes de rodar este
+   arquivo**, ative o login com Google no projeto (veja abaixo).
+
+## Login com Google (obrigatório antes de rodar 0003_auth.sql)
+
+1. No [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   crie um **OAuth 2.0 Client ID** do tipo "Web application":
+   - Authorized redirect URI: `https://SEU-PROJETO.supabase.co/auth/v1/callback`
+     (pegue a URL exata em Supabase → Authentication → Providers → Google)
+   - Se quiser restringir a tela de consentimento ao workspace, configure o
+     OAuth consent screen como "Internal" (só aparece se sua conta Google
+     Workspace for admin do domínio rtpublicity.com.br)
+2. No painel do Supabase → **Authentication → Providers → Google**: ative e
+   cole o **Client ID** e o **Client Secret** gerados no passo anterior.
+3. Em **Authentication → URL Configuration**, adicione
+   `http://localhost:3000/auth/callback` (dev) e a URL de produção
+   (`https://SEU-DOMINIO/auth/callback`) em "Redirect URLs".
+4. Só então rode `0003_auth.sql` no SQL Editor.
+
+A restrição ao domínio `@rtpublicity.com.br` é reforçada em três lugares:
+o parâmetro `hd` na tela do Google (UX), o `proxy.ts` do Next.js (redireciona
+e desloga quem não é do domínio) e as políticas de RLS no banco (quem manda,
+mesmo se alguém pular as duas primeiras camadas).
 
 ## Telas
 

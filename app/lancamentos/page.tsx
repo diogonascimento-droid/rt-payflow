@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SlideOverPanel, Field } from "@/components/SlideOverPanel";
 import { CurrencyInput } from "@/components/CurrencyInput";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
+import { useAuth } from "@/lib/supabase/useAuth";
 import { usePeriod } from "@/lib/usePeriod";
 import { useCombobox } from "@/lib/useCombobox";
 import { useLancamentos, usePlataformas, useContas, useCartoes } from "@/lib/supabase/hooks";
@@ -21,6 +22,7 @@ import { Lancamento } from "@/lib/types";
 type Confirmacao = { tipo: "single" | "lote"; ids: string[]; texto: string };
 
 export default function LancamentosPage() {
+  const { isEditor } = useAuth();
   const { lancamentos, setLancamentos, carregando, erro, recarregar } = useLancamentos();
   const { plataformas } = usePlataformas();
   const { contas } = useContas();
@@ -103,9 +105,11 @@ export default function LancamentosPage() {
     <div className="min-h-screen flex flex-col">
       <NavBar
         right={
-          <Link href="/novo-lancamento" className="font-body text-[13px] font-bold bg-lima-ui text-ink rounded-btn py-2 px-4 no-underline whitespace-nowrap">
-            + Lançamento
-          </Link>
+          isEditor ? (
+            <Link href="/novo-lancamento" className="font-body text-[13px] font-bold bg-lima-ui text-ink rounded-btn py-2 px-4 no-underline whitespace-nowrap">
+              + Lançamento
+            </Link>
+          ) : undefined
         }
       />
 
@@ -187,7 +191,7 @@ export default function LancamentosPage() {
             <thead>
               <tr className="font-mono text-[10.5px] tracking-[0.06em] uppercase text-text-faint">
                 <th className="w-[34px] py-2 px-1.5 border-b border-[#DADED7] text-left">
-                  <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} className="w-[15px] h-[15px] cursor-pointer" />
+                  {isEditor && <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} className="w-[15px] h-[15px] cursor-pointer" />}
                 </th>
                 <th className="w-[86px] py-2 px-1.5 border-b border-[#DADED7] text-left">Data</th>
                 <th className="w-[74px] py-2 px-1.5 border-b border-[#DADED7] text-left">Plataforma</th>
@@ -205,6 +209,7 @@ export default function LancamentosPage() {
                     <RowGroup
                       key={g.data}
                       grupo={g}
+                      isEditor={isEditor}
                       selecionados={selecionados}
                       setSelecionados={setSelecionados}
                       setEditando={setEditando}
@@ -215,6 +220,7 @@ export default function LancamentosPage() {
                     <LinhaLancamento
                       key={l.id}
                       l={l}
+                      isEditor={isEditor}
                       selecionado={!!selecionados[l.id]}
                       onToggle={() => setSelecionados((s) => ({ ...s, [l.id]: !s[l.id] }))}
                       onEditar={() => setEditando(l)}
@@ -256,7 +262,7 @@ export default function LancamentosPage() {
       </>
       )}
 
-      {editando && (
+      {isEditor && editando && (
         <EditarLancamento
           lancamento={editando}
           plataformas={plataformas.map((p) => p.nome)}
@@ -276,7 +282,7 @@ export default function LancamentosPage() {
         />
       )}
 
-      {confirmando && (
+      {isEditor && confirmando && (
         <ConfirmDialog
           title={confirmando.tipo === "lote" ? "Excluir lançamentos selecionados?" : "Excluir lançamento?"}
           text={confirmando.texto}
@@ -290,12 +296,14 @@ export default function LancamentosPage() {
 
 function LinhaLancamento({
   l,
+  isEditor,
   selecionado,
   onToggle,
   onEditar,
   onExcluir,
 }: {
   l: Lancamento;
+  isEditor: boolean;
   selecionado: boolean;
   onToggle: () => void;
   onEditar: () => void;
@@ -304,7 +312,7 @@ function LinhaLancamento({
   return (
     <tr className="border-b border-divider" style={{ background: selecionado ? "#FFFDF0" : "transparent" }}>
       <td className="py-2 px-1.5">
-        <input type="checkbox" checked={selecionado} onChange={onToggle} className="w-[15px] h-[15px] cursor-pointer" />
+        {isEditor && <input type="checkbox" checked={selecionado} onChange={onToggle} className="w-[15px] h-[15px] cursor-pointer" />}
       </td>
       <td className="py-2 px-1.5 font-mono text-[12.5px] whitespace-nowrap">{l.data}</td>
       <td className="py-2 px-1.5 text-[12.5px] text-text-muted whitespace-nowrap">{l.plataforma}</td>
@@ -316,12 +324,16 @@ function LinhaLancamento({
       </td>
       <td className="py-2 px-1.5 text-[12px] text-text-faint truncate max-w-[1px]">{l.obs || "—"}</td>
       <td className="py-2 px-1.5 text-right whitespace-nowrap">
-        <button onClick={onEditar} className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1">
-          editar
-        </button>
-        <button onClick={onExcluir} className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1">
-          excluir
-        </button>
+        {isEditor && (
+          <>
+            <button onClick={onEditar} className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1">
+              editar
+            </button>
+            <button onClick={onExcluir} className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1">
+              excluir
+            </button>
+          </>
+        )}
       </td>
     </tr>
   );
@@ -329,12 +341,14 @@ function LinhaLancamento({
 
 function RowGroup({
   grupo,
+  isEditor,
   selecionados,
   setSelecionados,
   setEditando,
   setConfirmando,
 }: {
   grupo: { data: string; total: number; itens: Lancamento[] };
+  isEditor: boolean;
   selecionados: Record<string, boolean>;
   setSelecionados: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setEditando: (l: Lancamento) => void;
@@ -353,6 +367,7 @@ function RowGroup({
         <LinhaLancamento
           key={l.id}
           l={l}
+          isEditor={isEditor}
           selecionado={!!selecionados[l.id]}
           onToggle={() => setSelecionados((s) => ({ ...s, [l.id]: !s[l.id] }))}
           onEditar={() => setEditando(l)}

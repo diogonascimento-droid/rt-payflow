@@ -5,6 +5,8 @@ import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Combobox } from "@/components/Combobox";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
+import { SemPermissao } from "@/components/SemPermissao";
+import { useAuth } from "@/lib/supabase/useAuth";
 import { useCombobox } from "@/lib/useCombobox";
 import { useContas, useCartoes } from "@/lib/supabase/hooks";
 import {
@@ -31,6 +33,7 @@ function parseCartaoCsv(raw: string): { bandeira: string; final4: string } {
 }
 
 export default function ImportarCsvPage() {
+  const { isEditor, carregando: carregandoAuth } = useAuth();
   const { contas, setContas, carregando: carregandoContas, erro: erroContas, recarregar: recarregarContas } = useContas();
   const { cartoes, setCartoes, carregando: carregandoCartoes, erro: erroCartoes, recarregar: recarregarCartoes } = useCartoes();
 
@@ -226,7 +229,7 @@ export default function ImportarCsvPage() {
         </div>
       )}
 
-      {carregandoCadastros ? (
+      {carregandoCadastros || carregandoAuth ? (
         <CarregandoState />
       ) : erroCadastros ? (
         <ErroState
@@ -236,6 +239,8 @@ export default function ImportarCsvPage() {
             recarregarCartoes();
           }}
         />
+      ) : !isEditor ? (
+        <SemPermissao />
       ) : (
       <>
       {step === "upload" && (

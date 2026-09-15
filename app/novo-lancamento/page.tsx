@@ -6,7 +6,9 @@ import { Combobox } from "@/components/Combobox";
 import { Toast } from "@/components/Toast";
 import { CurrencyInput } from "@/components/CurrencyInput";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
+import { SemPermissao } from "@/components/SemPermissao";
 import { useCombobox } from "@/lib/useCombobox";
+import { useAuth } from "@/lib/supabase/useAuth";
 import { useLancamentos, usePlataformas, useContas, useCartoes } from "@/lib/supabase/hooks";
 import { criarLancamento, excluirLancamentos } from "@/lib/supabase/queries";
 import { BRL, fmtData, cartaoRotulo } from "@/lib/format";
@@ -36,6 +38,7 @@ const estadoInicial = (plataformaInicial: string, ultimoCartao: string): FormSta
 });
 
 export default function NovoLancamentoPage() {
+  const { isEditor, carregando: carregandoAuth } = useAuth();
   const { lancamentos, setLancamentos, carregando, erro, recarregar } = useLancamentos();
   const { plataformas } = usePlataformas();
   const { contas } = useContas();
@@ -126,10 +129,12 @@ export default function NovoLancamentoPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      {carregando ? (
+      {carregando || carregandoAuth ? (
         <CarregandoState />
       ) : erro ? (
         <ErroState mensagem={erro} onRetry={recarregar} />
+      ) : !isEditor ? (
+        <SemPermissao />
       ) : (
       <div className="flex-1 flex items-start justify-center py-8 px-4">
         <div className="relative w-full max-w-[460px] bg-surface border border-border rounded-card flex flex-col shadow-[0_18px_40px_rgba(16,18,16,0.10)]">

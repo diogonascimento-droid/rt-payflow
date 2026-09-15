@@ -7,12 +7,14 @@ import { PeriodPicker } from "@/components/PeriodPicker";
 import { KpiTile, HeroStat, CardTile } from "@/components/tiles";
 import { usePeriod } from "@/lib/usePeriod";
 import { useLancamentos } from "@/lib/supabase/hooks";
+import { useAuth } from "@/lib/supabase/useAuth";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { filtrarPorPeriodo, agruparPorCartao, agruparPorConta, agruparPorDiaContaCartao } from "@/lib/aggregate";
 import { BRL, fmtData } from "@/lib/format";
 import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 
 export default function VisaoGeralPage() {
+  const { isEditor } = useAuth();
   const { lancamentos, carregando, erro, recarregar } = useLancamentos();
   const period = usePeriod();
   const [filtroCartao, setFiltroCartao] = useState<string | null>(null);
@@ -61,12 +63,14 @@ export default function VisaoGeralPage() {
             >
               Exportar PDF
             </Link>
-            <Link
-              href="/novo-lancamento"
-              className="font-body text-[13px] font-bold bg-lima-ui text-ink rounded-btn py-2 px-4 no-underline whitespace-nowrap"
-            >
-              + Lançamento
-            </Link>
+            {isEditor && (
+              <Link
+                href="/novo-lancamento"
+                className="font-body text-[13px] font-bold bg-lima-ui text-ink rounded-btn py-2 px-4 no-underline whitespace-nowrap"
+              >
+                + Lançamento
+              </Link>
+            )}
           </>
         }
       />
@@ -110,16 +114,20 @@ export default function VisaoGeralPage() {
             <div className="w-10 h-[3px] bg-lima-ui rounded-[2px]" />
             <h2 className="font-heading text-[20px] font-bold m-0">Nenhum lançamento entre {period.rotulo}</h2>
             <p className="m-0 text-[14px] leading-relaxed text-text-muted">
-              Amplie o período ou registre a primeira cobrança. A importação do CSV da Meta lança o mês inteiro de uma vez.
+              {isEditor
+                ? "Amplie o período ou registre a primeira cobrança. A importação do CSV da Meta lança o mês inteiro de uma vez."
+                : "Amplie o período pra ver lançamentos de outras datas."}
             </p>
-            <div className="flex gap-2.5 mt-1">
-              <Link href="/novo-lancamento" className="font-body text-[13px] font-bold bg-lima-ui text-ink rounded-btn py-2.5 px-[18px] no-underline">
-                + Lançamento
-              </Link>
-              <Link href="/importar-csv" className="font-body text-[13px] bg-surface border border-input-border rounded-btn py-2.5 px-[18px] no-underline">
-                Importar CSV da Meta
-              </Link>
-            </div>
+            {isEditor && (
+              <div className="flex gap-2.5 mt-1">
+                <Link href="/novo-lancamento" className="font-body text-[13px] font-bold bg-lima-ui text-ink rounded-btn py-2.5 px-[18px] no-underline">
+                  + Lançamento
+                </Link>
+                <Link href="/importar-csv" className="font-body text-[13px] bg-surface border border-input-border rounded-btn py-2.5 px-[18px] no-underline">
+                  Importar CSV da Meta
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       ) : (

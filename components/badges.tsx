@@ -1,13 +1,21 @@
 export function StatusBadge({ ativa, onClick }: { ativa: boolean; onClick?: () => void }) {
+  const estilo = {
+    background: ativa ? "var(--color-success-bg)" : "var(--color-neutral-badge-bg)",
+    color: ativa ? "var(--color-success)" : "var(--color-text-faint-2)",
+    borderColor: ativa ? "var(--color-success)" : "var(--color-text-faint-2)",
+  };
+  if (!onClick) {
+    return (
+      <span className="font-mono text-[11px] rounded-pill px-2.5 py-0.5 whitespace-nowrap border" style={estilo}>
+        {ativa ? "Ativa" : "Inativa"}
+      </span>
+    );
+  }
   return (
     <button
       onClick={onClick}
       className="font-mono text-[11px] rounded-pill px-2.5 py-0.5 whitespace-nowrap border cursor-pointer hover:opacity-70"
-      style={{
-        background: ativa ? "var(--color-success-bg)" : "var(--color-neutral-badge-bg)",
-        color: ativa ? "var(--color-success)" : "var(--color-text-faint-2)",
-        borderColor: ativa ? "var(--color-success)" : "var(--color-text-faint-2)",
-      }}
+      style={estilo}
     >
       {ativa ? "Ativa" : "Inativa"}
     </button>

@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/badges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SlideOverPanel, Field } from "@/components/SlideOverPanel";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
+import { useAuth } from "@/lib/supabase/useAuth";
 import { useLancamentos, usePlataformas, useContas, useCartoes, contarUso } from "@/lib/supabase/hooks";
 import {
   criarPlataforma, atualizarPlataforma, excluirPlataforma,
@@ -20,6 +21,7 @@ type Aba = "plataformas" | "contas" | "cartoes";
 type Confirmacao = { tipo: "plataforma" | "conta" | "cartao"; id: string; texto: string };
 
 export default function CadastrosPage() {
+  const { isEditor } = useAuth();
   const [aba, setAba] = useState<Aba>("plataformas");
   const { plataformas, setPlataformas, carregando: carregandoP, erro: erroP, recarregar: recarregarP } = usePlataformas();
   const { contas, setContas, carregando: carregandoC, erro: erroC, recarregar: recarregarC } = useContas();
@@ -86,12 +88,14 @@ export default function CadastrosPage() {
           <>
             <div className="flex items-baseline justify-between">
               <h1 className="font-heading text-[19px] font-bold m-0">Plataformas</h1>
-              <button
-                onClick={() => setPainel({ tipo: "plataforma", item: { id: "", nome: "", ativa: true } })}
-                className="font-body text-[13px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2 px-[15px] cursor-pointer"
-              >
-                + Plataforma
-              </button>
+              {isEditor && (
+                <button
+                  onClick={() => setPainel({ tipo: "plataforma", item: { id: "", nome: "", ativa: true } })}
+                  className="font-body text-[13px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2 px-[15px] cursor-pointer"
+                >
+                  + Plataforma
+                </button>
+              )}
             </div>
             <div className="bg-surface border border-border rounded-card overflow-hidden max-w-[560px]">
               <div className="flex font-mono text-[10.5px] tracking-[0.06em] uppercase text-text-faint py-2.5 px-4">
@@ -109,24 +113,29 @@ export default function CadastrosPage() {
                     <span className="w-[80px]">
                       <StatusBadge
                         ativa={p.ativa}
-                        onClick={() => salvarPlataforma({ ...p, ativa: !p.ativa })}
+                        onClick={isEditor ? () => salvarPlataforma({ ...p, ativa: !p.ativa }) : undefined}
                       />
                     </span>
                     <span className="w-[110px] text-right whitespace-nowrap">
-                      <button
-                        onClick={() => setPainel({ tipo: "plataforma", item: p })}
-                        className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1"
-                      >
-                        editar
-                      </button>
-                      {qtdContas === 0 ? (
-                        <button
-                          onClick={() => setConfirmando({ tipo: "plataforma", id: p.id, texto: `Excluir a plataforma ${p.nome}? Essa ação não pode ser desfeita.` })}
-                          className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
-                        >
-                          excluir
-                        </button>
-                      ) : (
+                      {isEditor && (
+                        <>
+                          <button
+                            onClick={() => setPainel({ tipo: "plataforma", item: p })}
+                            className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1"
+                          >
+                            editar
+                          </button>
+                          {qtdContas === 0 && (
+                            <button
+                              onClick={() => setConfirmando({ tipo: "plataforma", id: p.id, texto: `Excluir a plataforma ${p.nome}? Essa ação não pode ser desfeita.` })}
+                              className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
+                            >
+                              excluir
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {qtdContas > 0 && (
                         <span className="text-[11px] text-text-faint-2" title={`${qtdContas} conta(s) usam esta plataforma`}>
                           {qtdContas} conta(s)
                         </span>
@@ -143,14 +152,16 @@ export default function CadastrosPage() {
           <>
             <div className="flex items-baseline justify-between">
               <h1 className="font-heading text-[19px] font-bold m-0">Contas de anúncio</h1>
-              <button
-                onClick={() =>
-                  setPainel({ tipo: "conta", item: { id: "", nome: "", plataforma: plataformas[0]?.nome || "", cliente: "", idConta: "", ativa: true, qtdLancamentos: 0 } })
-                }
-                className="font-body text-[13px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2 px-[15px] cursor-pointer"
-              >
-                + Conta de anúncio
-              </button>
+              {isEditor && (
+                <button
+                  onClick={() =>
+                    setPainel({ tipo: "conta", item: { id: "", nome: "", plataforma: plataformas[0]?.nome || "", cliente: "", idConta: "", ativa: true, qtdLancamentos: 0 } })
+                  }
+                  className="font-body text-[13px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2 px-[15px] cursor-pointer"
+                >
+                  + Conta de anúncio
+                </button>
+              )}
             </div>
             <div className="bg-surface border border-border rounded-card overflow-hidden">
               <div className="flex font-mono text-[10.5px] tracking-[0.06em] uppercase text-text-faint py-2.5 px-4">
@@ -170,23 +181,28 @@ export default function CadastrosPage() {
                   <span className="flex-1 text-[13px] text-text-muted truncate pr-2">{c.cliente}</span>
                   <span className="w-[150px] font-mono text-[12px] text-text-muted truncate">{c.idConta}</span>
                   <span className="w-[76px]">
-                    <StatusBadge ativa={c.ativa} onClick={() => salvarConta({ ...c, ativa: !c.ativa })} />
+                    <StatusBadge ativa={c.ativa} onClick={isEditor ? () => salvarConta({ ...c, ativa: !c.ativa }) : undefined} />
                   </span>
                   <span className="w-[160px] text-right whitespace-nowrap">
-                    <button
-                      onClick={() => setPainel({ tipo: "conta", item: c })}
-                      className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1"
-                    >
-                      editar
-                    </button>
-                    {qtd === 0 ? (
-                      <button
-                        onClick={() => setConfirmando({ tipo: "conta", id: c.id, texto: `Excluir a conta ${c.nome}? Essa ação não pode ser desfeita.` })}
-                        className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
-                      >
-                        excluir
-                      </button>
-                    ) : (
+                    {isEditor && (
+                      <>
+                        <button
+                          onClick={() => setPainel({ tipo: "conta", item: c })}
+                          className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1"
+                        >
+                          editar
+                        </button>
+                        {qtd === 0 && (
+                          <button
+                            onClick={() => setConfirmando({ tipo: "conta", id: c.id, texto: `Excluir a conta ${c.nome}? Essa ação não pode ser desfeita.` })}
+                            className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
+                          >
+                            excluir
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {qtd > 0 && (
                       <span className="text-[11px] text-text-faint-2" title={`${qtd} lançamento(s) usam esta conta — desative em vez de excluir`}>
                         {qtd} lanç.
                       </span>
@@ -202,12 +218,14 @@ export default function CadastrosPage() {
           <>
             <div className="flex items-baseline justify-between">
               <h1 className="font-heading text-[19px] font-bold m-0">Cartões</h1>
-              <button
-                onClick={() => setPainel({ tipo: "cartao", item: { id: "", bandeira: "Visa", final4: "", apelido: "", fechamento: undefined, vencimento: undefined, ativa: true, qtdLancamentos: 0 } })}
-                className="font-body text-[13px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2 px-[15px] cursor-pointer"
-              >
-                + Cartão
-              </button>
+              {isEditor && (
+                <button
+                  onClick={() => setPainel({ tipo: "cartao", item: { id: "", bandeira: "Visa", final4: "", apelido: "", fechamento: undefined, vencimento: undefined, ativa: true, qtdLancamentos: 0 } })}
+                  className="font-body text-[13px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2 px-[15px] cursor-pointer"
+                >
+                  + Cartão
+                </button>
+              )}
             </div>
             <div className="bg-surface border border-border rounded-card overflow-hidden">
               <div className="flex font-mono text-[10.5px] tracking-[0.06em] uppercase text-text-faint py-2.5 px-4">
@@ -229,23 +247,28 @@ export default function CadastrosPage() {
                   <span className="w-[110px] font-mono text-[12.5px] text-text-muted">dia {c.fechamento ?? "—"}</span>
                   <span className="w-[110px] font-mono text-[12.5px] text-text-muted">dia {c.vencimento ?? "—"}</span>
                   <span className="w-[76px]">
-                    <StatusBadge ativa={c.ativa} onClick={() => salvarCartao({ ...c, ativa: !c.ativa })} />
+                    <StatusBadge ativa={c.ativa} onClick={isEditor ? () => salvarCartao({ ...c, ativa: !c.ativa }) : undefined} />
                   </span>
                   <span className="w-[160px] text-right whitespace-nowrap">
-                    <button
-                      onClick={() => setPainel({ tipo: "cartao", item: c })}
-                      className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1"
-                    >
-                      editar
-                    </button>
-                    {qtd === 0 ? (
-                      <button
-                        onClick={() => setConfirmando({ tipo: "cartao", id: c.id, texto: `Excluir o cartão ${c.bandeira} ···· ${c.final4}? Essa ação não pode ser desfeita.` })}
-                        className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
-                      >
-                        excluir
-                      </button>
-                    ) : (
+                    {isEditor && (
+                      <>
+                        <button
+                          onClick={() => setPainel({ tipo: "cartao", item: c })}
+                          className="font-body text-[12px] bg-transparent border-none text-text-muted underline cursor-pointer py-0.5 px-1"
+                        >
+                          editar
+                        </button>
+                        {qtd === 0 && (
+                          <button
+                            onClick={() => setConfirmando({ tipo: "cartao", id: c.id, texto: `Excluir o cartão ${c.bandeira} ···· ${c.final4}? Essa ação não pode ser desfeita.` })}
+                            className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
+                          >
+                            excluir
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {qtd > 0 && (
                       <span className="text-[11px] text-text-faint-2" title={`${qtd} lançamento(s) usam este cartão — desative em vez de excluir`}>
                         {qtd} lanç.
                       </span>
