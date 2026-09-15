@@ -118,7 +118,7 @@ function LoginContent() {
               Entrar no RT PayFlow
             </h1>
             <p style={{ fontSize: 13, color: "#8A938B", margin: 0, lineHeight: 1.5 }}>
-              Acesso restrito à equipe de tráfego da RT Publicity
+              Acesso restrito à equipe de performance da RT Publicity
             </p>
           </div>
 
