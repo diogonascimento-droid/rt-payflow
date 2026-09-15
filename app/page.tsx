@@ -6,19 +6,22 @@ import { NavBar } from "@/components/NavBar";
 import { PeriodPicker } from "@/components/PeriodPicker";
 import { KpiTile, HeroStat, CardTile } from "@/components/tiles";
 import { usePeriod } from "@/lib/usePeriod";
-import { LANCAMENTOS } from "@/lib/mockData";
+import { useLancamentos } from "@/lib/supabase/hooks";
+import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { filtrarPorPeriodo, agruparPorCartao, agruparPorConta, agruparPorDiaContaCartao } from "@/lib/aggregate";
 import { BRL, fmtData } from "@/lib/format";
+import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 
 export default function VisaoGeralPage() {
+  const { lancamentos, carregando, erro, recarregar } = useLancamentos();
   const period = usePeriod();
   const [filtroCartao, setFiltroCartao] = useState<string | null>(null);
   const [buscaGrupos, setBuscaGrupos] = useState("");
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
 
   const doPeriodo = useMemo(
-    () => filtrarPorPeriodo(LANCAMENTOS, period.periodoInicio, period.periodoFim),
-    [period.periodoInicio, period.periodoFim]
+    () => filtrarPorPeriodo(lancamentos, period.periodoInicio, period.periodoFim),
+    [lancamentos, period.periodoInicio, period.periodoFim]
   );
 
   const filtrados = useMemo(
@@ -35,7 +38,7 @@ export default function VisaoGeralPage() {
   const nLanc = filtrados.length;
   const csv = filtrados.filter((l) => l.origem === "csv").length;
   const manual = nLanc - csv;
-  const investimentoRT = filtrados.filter((l) => l.obs === "#InvestimentoRT").reduce((s, l) => s + l.valor, 0);
+  const investimentoRT = filtrados.filter((l) => temTagInvestimentoRT(l.obs)).reduce((s, l) => s + l.valor, 0);
   const semConta = doPeriodo.filter((l) => !l.conta).length;
 
   const grupos = useMemo(() => {
@@ -68,6 +71,12 @@ export default function VisaoGeralPage() {
         }
       />
 
+      {carregando ? (
+        <CarregandoState />
+      ) : erro ? (
+        <ErroState mensagem={erro} onRetry={recarregar} />
+      ) : (
+        <>
       <div className="bg-ink text-text-on-dark flex flex-col gap-[18px] px-7 pb-[22px] pt-1">
         <div className="flex items-end gap-10 flex-wrap pt-3">
           <HeroStat label={filtroCartao ? "Total no cartão selecionado" : "Total do período"} value={BRL(totalGeral)} />
@@ -227,6 +236,8 @@ export default function VisaoGeralPage() {
             </div>
           </section>
         </div>
+      )}
+        </>
       )}
     </div>
   );

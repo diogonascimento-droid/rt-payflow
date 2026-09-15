@@ -5,12 +5,15 @@ import { NavBar } from "@/components/NavBar";
 import { Combobox } from "@/components/Combobox";
 import { Toast } from "@/components/Toast";
 import { CurrencyInput } from "@/components/CurrencyInput";
+import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { useCombobox } from "@/lib/useCombobox";
-import { PLATAFORMAS, CONTAS_POR_PLATAFORMA, CARTAO_NOMES, LANCAMENTOS } from "@/lib/mockData";
-import { BRL, fmtData } from "@/lib/format";
+import { useLancamentos, usePlataformas, useContas, useCartoes } from "@/lib/supabase/hooks";
+import { criarLancamento, excluirLancamentos } from "@/lib/supabase/queries";
+import { BRL, fmtData, cartaoRotulo } from "@/lib/format";
+import { TAG_INVESTIMENTO_RT } from "@/lib/investimentoRT";
 import { Lancamento } from "@/lib/types";
 
-const HOJE_STR = fmtData(new Date(2026, 8, 14));
+const HOJE_STR = fmtData(new Date());
 
 type FormState = {
   data: string;
@@ -22,9 +25,9 @@ type FormState = {
   erro: string;
 };
 
-const estadoInicial = (ultimoCartao: string): FormState => ({
+const estadoInicial = (plataformaInicial: string, ultimoCartao: string): FormState => ({
   data: HOJE_STR,
-  plataforma: "Meta",
+  plataforma: plataformaInicial,
   conta: "",
   cartao: ultimoCartao,
   centavos: 0,
@@ -33,11 +36,35 @@ const estadoInicial = (ultimoCartao: string): FormState => ({
 });
 
 export default function NovoLancamentoPage() {
-  const [ultimoCartao, setUltimoCartao] = useState(CARTAO_NOMES[0]);
-  const [recentContas, setRecentContas] = useState<string[]>(["RT Mídia 01"]);
-  const [lista, setLista] = useState<Lancamento[]>(() => LANCAMENTOS.slice(-5).reverse());
-  const [form, setForm] = useState<FormState>(() => estadoInicial(CARTAO_NOMES[0]));
+  const { lancamentos, setLancamentos, carregando, erro, recarregar } = useLancamentos();
+  const { plataformas } = usePlataformas();
+  const { contas } = useContas();
+  const { cartoes } = useCartoes();
+
+  const CONTAS_POR_PLATAFORMA = useMemo(() => {
+    const mapa: Record<string, string[]> = {};
+    contas.forEach((c) => {
+      (mapa[c.plataforma] ||= []).push(c.nome);
+    });
+    return mapa;
+  }, [contas]);
+  const CARTAO_NOMES = useMemo(() => cartoes.map(cartaoRotulo), [cartoes]);
+  const plataformaInicial = plataformas[0]?.nome || "";
+
+  const [recentContas, setRecentContas] = useState<string[]>([]);
+  const [form, setForm] = useState<FormState>(() => estadoInicial("", ""));
   const [toast, setToast] = useState<Lancamento | null>(null);
+  const [inicializado, setInicializado] = useState(false);
+
+  // Assim que os cadastros chegarem, define os valores padrão do formulário.
+  useEffect(() => {
+    if (!inicializado && plataformaInicial && CARTAO_NOMES.length > 0) {
+      setForm(estadoInicial(plataformaInicial, CARTAO_NOMES[0]));
+      setInicializado(true);
+    }
+  }, [inicializado, plataformaInicial, CARTAO_NOMES]);
+
+  const ultimos5 = useMemo(() => lancamentos.slice(0, 5), [lancamentos]);
 
   const contasOpcoes = useMemo(() => {
     const base = CONTAS_POR_PLATAFORMA[form.plataforma] || [];
@@ -46,7 +73,7 @@ export default function NovoLancamentoPage() {
       const ib = recentContas.indexOf(b);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
-  }, [form.plataforma, recentContas]);
+  }, [form.plataforma, recentContas, CONTAS_POR_PLATAFORMA]);
 
   const contaCombo = useCombobox(contasOpcoes, form.conta, (v) => setForm((f) => ({ ...f, conta: v, erro: "" })));
   const cartaoCombo = useCombobox(CARTAO_NOMES, form.cartao, (v) => setForm((f) => ({ ...f, cartao: v })));
@@ -63,35 +90,47 @@ export default function NovoLancamentoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form]);
 
-  function salvar(continuar: boolean) {
+  async function salvar(continuar: boolean) {
     if (!form.conta) return setForm((f) => ({ ...f, erro: "Escolha a conta de anúncio antes de registrar." }));
     if (!form.centavos) return setForm((f) => ({ ...f, erro: "Informe o valor da cobrança." }));
-    const registro: Lancamento = {
-      id: "novo" + Date.now(),
-      data: form.data,
-      plataforma: form.plataforma,
-      conta: form.conta,
-      cartao: form.cartao,
-      valor: form.centavos / 100,
-      origem: "manual",
-      obs: form.obs || undefined,
-    };
-    setLista((l) => [registro, ...l].slice(0, 5));
-    setUltimoCartao(form.cartao);
-    setRecentContas((r) => [form.conta, ...r.filter((x) => x !== form.conta)].slice(0, 8));
-    setToast(registro);
-    setForm(continuar ? { ...estadoInicial(form.cartao), plataforma: form.plataforma } : estadoInicial(form.cartao));
+    try {
+      const registro = await criarLancamento({
+        data: form.data,
+        plataforma: form.plataforma,
+        conta: form.conta,
+        cartao: form.cartao,
+        valor: form.centavos / 100,
+        origem: "manual",
+        obs: form.obs || undefined,
+      });
+      setLancamentos((l) => [registro, ...l]);
+      setRecentContas((r) => [form.conta, ...r.filter((x) => x !== form.conta)].slice(0, 8));
+      setToast(registro);
+      setForm(continuar ? { ...estadoInicial(form.plataforma, form.cartao) } : estadoInicial(form.plataforma, form.cartao));
+    } catch (e) {
+      setForm((f) => ({ ...f, erro: (e as Error).message }));
+    }
   }
 
-  function desfazer() {
+  async function desfazer() {
     if (!toast) return;
-    setLista((l) => l.filter((x) => x.id !== toast.id));
-    setToast(null);
+    try {
+      await excluirLancamentos([toast.id]);
+      setLancamentos((l) => l.filter((x) => x.id !== toast.id));
+      setToast(null);
+    } catch (e) {
+      setForm((f) => ({ ...f, erro: (e as Error).message }));
+    }
   }
 
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
+      {carregando ? (
+        <CarregandoState />
+      ) : erro ? (
+        <ErroState mensagem={erro} onRetry={recarregar} />
+      ) : (
       <div className="flex-1 flex items-start justify-center py-8 px-4">
         <div className="relative w-full max-w-[460px] bg-surface border border-border rounded-card flex flex-col shadow-[0_18px_40px_rgba(16,18,16,0.10)]">
           <header className="flex items-center justify-between gap-3 py-[18px] px-[22px] border-b border-[#E7EAE5]">
@@ -123,7 +162,7 @@ export default function NovoLancamentoPage() {
                   onChange={(e) => setForm((f) => ({ ...f, plataforma: e.target.value, conta: "", erro: "" }))}
                   className="text-[14px] py-2.5 px-3 border border-input-border rounded-sm bg-surface outline-none"
                 >
-                  {PLATAFORMAS.map((p) => (
+                  {plataformas.map((p) => (
                     <option key={p.id} value={p.nome}>
                       {p.nome}
                     </option>
@@ -135,9 +174,7 @@ export default function NovoLancamentoPage() {
             <label className="flex flex-col gap-1.5">
               <span className="font-mono text-[10.5px] tracking-[0.1em] uppercase text-[#5C665E]">Conta de anúncio</span>
               <Combobox combo={contaCombo} placeholder="Buscar conta…" hasError={!!form.erro && !form.conta} />
-              <span className="text-[11.5px] text-text-faint">
-                {form.plataforma === "Meta" ? "3 contas Meta · o cliente é detalhado na observação" : `${contasOpcoes.length} contas ${form.plataforma}`}
-              </span>
+              <span className="text-[11.5px] text-text-faint">{contasOpcoes.length} contas {form.plataforma}</span>
             </label>
 
             <label className="flex flex-col gap-1.5">
@@ -166,7 +203,7 @@ export default function NovoLancamentoPage() {
                 className="text-[14px] py-2.5 px-3 border border-input-border rounded-sm bg-surface outline-none resize-y"
               />
               <button
-                onClick={() => setForm((f) => ({ ...f, obs: (f.obs ? f.obs.trim() + " " : "") + "#InvestimentoRT" }))}
+                onClick={() => setForm((f) => ({ ...f, obs: (f.obs ? f.obs.trim() + " " : "") + TAG_INVESTIMENTO_RT }))}
                 className="self-start font-mono text-[11.5px] bg-[#F1F3EE] border border-[#DCE0D9] rounded-pill py-1 px-2.5 cursor-pointer text-text-muted whitespace-nowrap"
               >
                 + Investimento RT
@@ -184,7 +221,7 @@ export default function NovoLancamentoPage() {
                 <h3 className="font-heading text-[13.5px] font-bold m-0">Últimos 5 lançamentos</h3>
                 <span className="font-mono text-[11px] text-text-faint">conferência</span>
               </div>
-              {lista.map((u) => (
+              {ultimos5.map((u) => (
                 <div key={u.id} className="flex items-center gap-2.5 py-1.5 border-b border-[#EFF1EC] last:border-b-0">
                   <span className="font-mono text-[12px] text-text-faint w-[76px] shrink-0">{u.data}</span>
                   <span className="text-[13px] flex-1 min-w-0 truncate">{u.conta}</span>
@@ -218,6 +255,7 @@ export default function NovoLancamentoPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

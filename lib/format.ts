@@ -22,3 +22,7 @@ export const parseValorBR = (s: string): number => {
   const n = parseFloat(s.replace(/\./g, "").replace(",", "."));
   return isNaN(n) ? 0 : n;
 };
+
+/** "Visa" + "4400" -> "Visa ···· 4400" (mesmo formato do extrato da Meta). */
+export const cartaoRotulo = (c: { bandeira: string; final4: string }): string =>
+  `${c.bandeira} ···· ${c.final4}`;

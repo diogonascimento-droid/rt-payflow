@@ -1,65 +1,76 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Combobox } from "@/components/Combobox";
+import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { useCombobox } from "@/lib/useCombobox";
-import { CONTAS_META_POR_ID, CARTAO_NOMES } from "@/lib/mockData";
-import { BRL } from "@/lib/format";
+import { useContas, useCartoes } from "@/lib/supabase/hooks";
+import {
+  idsTransacaoExistentes,
+  criarLoteImportacao,
+  inserirLancamentosEmLote,
+  marcarLoteDesfeito,
+  excluirLancamentosDoLote,
+  criarCartao,
+  atualizarConta,
+} from "@/lib/supabase/queries";
+import { BRL, cartaoRotulo } from "@/lib/format";
 import { parseMetaCsv, LinhaCsv } from "@/lib/csvImport";
 
 type Step = "upload" | "lendo" | "erro" | "preview" | "resultado";
 type ErroInfo = { tipo: "invalido" | "vazio" | "conta_desconhecida"; nome: string; contaId?: string; periodo?: string; rows?: LinhaCsv[] };
 type Arquivo = { nome: string; contaId: string; contaNome: string; periodo: string; transacoes: (LinhaCsv & { nova: boolean })[] };
 
-const CHAVE_IMPORTADOS = "rtpayflow_ids_importados";
-
-function lerImportados(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = window.localStorage.getItem(CHAVE_IMPORTADOS);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function salvarImportados(ids: Set<string>) {
-  window.localStorage.setItem(CHAVE_IMPORTADOS, JSON.stringify(Array.from(ids)));
+function parseCartaoCsv(raw: string): { bandeira: string; final4: string } {
+  const partes = raw.trim().split(/\s+/);
+  const final4 = partes[partes.length - 1];
+  const bandeira = partes.slice(0, -1).join(" ").replace("····", "").trim() || partes[0];
+  return { bandeira, final4 };
 }
 
 export default function ImportarCsvPage() {
+  const { contas, setContas, carregando: carregandoContas, erro: erroContas, recarregar: recarregarContas } = useContas();
+  const { cartoes, setCartoes, carregando: carregandoCartoes, erro: erroCartoes, recarregar: recarregarCartoes } = useCartoes();
+
+  const contasMeta = useMemo(() => contas.filter((c) => c.plataforma === "Meta"), [contas]);
+  const CONTAS_META_POR_ID = useMemo(
+    () => Object.fromEntries(contasMeta.filter((c) => c.idConta).map((c) => [c.idConta, c.nome])),
+    [contasMeta]
+  );
+  const CARTAO_NOMES = useMemo(() => cartoes.map(cartaoRotulo), [cartoes]);
+
   const [step, setStep] = useState<Step>("upload");
   const [nomeArquivoLendo, setNomeArquivoLendo] = useState("");
   const [erro, setErro] = useState<ErroInfo | null>(null);
   const [arquivo, setArquivo] = useState<Arquivo | null>(null);
   const [contaTrocada, setContaTrocada] = useState<string | null>(null);
-  const [cartoesExtras, setCartoesExtras] = useState<string[]>([]);
   const [cadastroAberto, setCadastroAberto] = useState<string | null>(null);
+  const [bandeiraEscolhida, setBandeiraEscolhida] = useState<Record<string, string>>({});
   const [mostrarImportadas, setMostrarImportadas] = useState(false);
   const [buscaImportadas, setBuscaImportadas] = useState("");
   const [contaMapeada, setContaMapeada] = useState("");
-  const [resultado, setResultado] = useState<{ qtd: number; valor: string; conta: string; arquivo: string; idsNovos: string[] } | null>(null);
+  const [resultado, setResultado] = useState<{ qtd: number; valor: string; conta: string; arquivo: string; loteId: string } | null>(null);
   const [resultadoDesfeito, setResultadoDesfeito] = useState(false);
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const nomesContas = Object.values(CONTAS_META_POR_ID);
-  const mapCombo = useCombobox(nomesContas, contaMapeada ? CONTAS_META_POR_ID[contaMapeada] : "", (nome) => {
-    const id = Object.keys(CONTAS_META_POR_ID).find((k) => CONTAS_META_POR_ID[k] === nome);
-    setContaMapeada(id || "");
-  });
-  const trocarCombo = useCombobox(nomesContas, "", (nome) => setContaTrocada(nome));
+  const nomesContasMeta = contasMeta.map((c) => c.nome);
+  const mapCombo = useCombobox(nomesContasMeta, contaMapeada, (nome) => setContaMapeada(nome));
+  const trocarCombo = useCombobox(nomesContasMeta, "", (nome) => setContaTrocada(nome));
 
-  const registrados = [...CARTAO_NOMES, ...cartoesExtras];
-
-  function classificarLinhas(rows: LinhaCsv[]): Arquivo["transacoes"] {
-    const importados = lerImportados();
-    return rows.map((r) => ({ ...r, nova: !importados.has(r.id) }));
-  }
-
-  function montarPreview(contaId: string, contaNome: string, periodo: string, rows: LinhaCsv[], nome: string) {
-    const transacoes = classificarLinhas(rows);
+  async function montarPreview(contaId: string, contaNome: string, periodo: string, rows: LinhaCsv[], nome: string) {
+    let existentes: Set<string>;
+    try {
+      existentes = await idsTransacaoExistentes(rows.map((r) => r.id));
+    } catch (e) {
+      setStep("erro");
+      setErro({ tipo: "invalido", nome });
+      setErroAcao((e as Error).message);
+      return;
+    }
+    const transacoes = rows.map((r) => ({ ...r, nova: !existentes.has(r.id) }));
     const qtdNovas = transacoes.filter((t) => t.nova).length;
     if (qtdNovas === 0) {
       setStep("erro");
@@ -73,7 +84,7 @@ export default function ImportarCsvPage() {
     setStep("preview");
   }
 
-  function processarResultadoParse(nome: string, texto: string) {
+  async function processarResultadoParse(nome: string, texto: string) {
     const r = parseMetaCsv(texto);
     if (!r.ok) {
       setStep("erro");
@@ -86,7 +97,7 @@ export default function ImportarCsvPage() {
       setErro({ tipo: "conta_desconhecida", nome, contaId: r.contaId, periodo: r.periodo, rows: r.rows });
       return;
     }
-    montarPreview(r.contaId, contaNome, r.periodo, r.rows, nome);
+    await montarPreview(r.contaId, contaNome, r.periodo, r.rows, nome);
   }
 
   function lerArquivo(file: File) {
@@ -115,32 +126,68 @@ export default function ImportarCsvPage() {
   const buscaLower = buscaImportadas.toLowerCase();
   const importadasFiltradas = buscaLower ? importadas.filter((t) => (t.data + t.id + t.cartao).toLowerCase().includes(buscaLower)) : importadas;
 
-  function confirmarImportacao() {
+  async function confirmarImportacao() {
     if (!arquivo) return;
-    const ids = lerImportados();
-    novas.forEach((t) => ids.add(t.id));
-    salvarImportados(ids);
-    setResultado({
-      qtd: novas.length,
-      valor: BRL(totalNovasNum),
-      conta: contaTrocada || arquivo.contaNome,
-      arquivo: arquivo.nome,
-      idsNovos: novas.map((t) => t.id),
-    });
-    setResultadoDesfeito(false);
-    setStep("resultado");
+    const contaFinal = contaTrocada || arquivo.contaNome;
+    try {
+      const lote = await criarLoteImportacao({
+        arquivoNome: arquivo.nome,
+        plataforma: "Meta",
+        conta: contaFinal,
+        contaId: arquivo.contaId,
+        periodoLabel: arquivo.periodo,
+        totalLinhas: arquivo.transacoes.length,
+        totalImportado: novas.length,
+        totalDuplicado: importadas.length,
+        valorImportado: totalNovasNum,
+      });
+      await inserirLancamentosEmLote(
+        novas.map((t) => ({
+          data: t.data,
+          plataforma: "Meta",
+          conta: contaFinal,
+          cartao: t.cartao,
+          valor: t.valor,
+          origem: "csv" as const,
+          idTransacaoExterna: t.id,
+          loteId: lote.id,
+        }))
+      );
+      setResultado({ qtd: novas.length, valor: BRL(totalNovasNum), conta: contaFinal, arquivo: arquivo.nome, loteId: lote.id });
+      setResultadoDesfeito(false);
+      setStep("resultado");
+      setErroAcao(null);
+    } catch (e) {
+      setErroAcao((e as Error).message);
+    }
   }
 
-  function desfazerImportacao() {
+  async function desfazerImportacao() {
     if (!resultado) return;
-    const ids = lerImportados();
-    resultado.idsNovos.forEach((id) => ids.delete(id));
-    salvarImportados(ids);
-    setResultadoDesfeito(true);
-    setStep("upload");
-    setErro(null);
-    setArquivo(null);
-    setResultado(null);
+    try {
+      await excluirLancamentosDoLote(resultado.loteId);
+      await marcarLoteDesfeito(resultado.loteId);
+      setResultadoDesfeito(true);
+      setStep("upload");
+      setErro(null);
+      setArquivo(null);
+      setResultado(null);
+      setErroAcao(null);
+    } catch (e) {
+      setErroAcao((e as Error).message);
+    }
+  }
+
+  async function cadastrarCartao(chave: string, cartaoCsv: string) {
+    const { bandeira, final4 } = parseCartaoCsv(cartaoCsv);
+    const bandeiraFinal = bandeiraEscolhida[chave] || bandeira || "Visa";
+    try {
+      const criado = await criarCartao({ bandeira: bandeiraFinal, final4, apelido: "", ativa: true });
+      setCartoes((cs) => [...cs, criado]);
+      setCadastroAberto(null);
+    } catch (e) {
+      setErroAcao((e as Error).message);
+    }
   }
 
   const passos = [
@@ -148,6 +195,9 @@ export default function ImportarCsvPage() {
     { rotulo: "2 Pré-visualização", ativo: step === "preview" },
     { rotulo: "3 Resultado", ativo: step === "resultado" },
   ];
+
+  const carregandoCadastros = carregandoContas || carregandoCartoes;
+  const erroCadastros = erroContas || erroCartoes;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -167,6 +217,27 @@ export default function ImportarCsvPage() {
         ))}
       </div>
 
+      {erroAcao && (
+        <div className="bg-danger-bg border-b border-danger-border text-danger text-[13px] py-2 px-7 flex items-center gap-3">
+          {erroAcao}
+          <button onClick={() => setErroAcao(null)} className="ml-auto bg-transparent border-none text-danger underline cursor-pointer">
+            dispensar
+          </button>
+        </div>
+      )}
+
+      {carregandoCadastros ? (
+        <CarregandoState />
+      ) : erroCadastros ? (
+        <ErroState
+          mensagem={erroCadastros}
+          onRetry={() => {
+            recarregarContas();
+            recarregarCartoes();
+          }}
+        />
+      ) : (
+      <>
       {step === "upload" && (
         <div className="flex-1 flex items-center justify-center py-16 px-7">
           <div className="max-w-[560px] w-full flex flex-col gap-4">
@@ -237,18 +308,28 @@ export default function ImportarCsvPage() {
               {erro.tipo === "vazio" &&
                 "O cabeçalho é válido, mas todas as transações do arquivo já foram importadas anteriormente (ou não há linhas de cobrança na tabela)."}
               {erro.tipo === "conta_desconhecida" &&
-                `ID ${erro.contaId} não corresponde a nenhuma conta Meta cadastrada. Associe manualmente ou cadastre a conta em Cadastros.`}
+                `ID ${erro.contaId} não corresponde a nenhuma conta Meta cadastrada. Associe manualmente ou cadastre o ID em Cadastros.`}
             </p>
 
             {erro.tipo === "conta_desconhecida" && (
               <div className="flex flex-col gap-2 bg-[#F7F8F5] rounded-sm p-3.5 relative">
                 <span className="font-mono text-[11px] tracking-[0.08em] uppercase text-[#5C665E]">Associar a uma conta cadastrada</span>
                 <Combobox combo={mapCombo} placeholder="Buscar conta…" />
+                <span className="text-[11px] text-text-faint">Isso salva o ID nessa conta — da próxima vez o reconhecimento é automático.</span>
                 <button
                   disabled={!contaMapeada}
-                  onClick={() => {
-                    if (!erro.rows) return;
-                    montarPreview(contaMapeada, CONTAS_META_POR_ID[contaMapeada], erro.periodo || "—", erro.rows, erro.nome);
+                  onClick={async () => {
+                    if (!erro.rows || !erro.contaId) return;
+                    const conta = contasMeta.find((c) => c.nome === contaMapeada);
+                    try {
+                      if (conta && conta.idConta !== erro.contaId) {
+                        const atualizado = await atualizarConta({ ...conta, idConta: erro.contaId });
+                        setContas((cs) => cs.map((x) => (x.id === atualizado.id ? atualizado : x)));
+                      }
+                    } catch (e) {
+                      setErroAcao((e as Error).message);
+                    }
+                    await montarPreview(erro.contaId, contaMapeada, erro.periodo || "—", erro.rows, erro.nome);
                     setContaMapeada("");
                   }}
                   className="self-start font-body text-[13.5px] font-bold bg-ink text-text-on-dark border-none rounded-btn py-2 px-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -331,7 +412,7 @@ export default function ImportarCsvPage() {
               <span className="w-[110px] shrink-0 text-right">Valor</span>
             </div>
             {novas.map((t, idx) => {
-              const desconhecido = !registrados.includes(t.cartao);
+              const desconhecido = !CARTAO_NOMES.includes(t.cartao);
               const jaVisto = cartaoDesconhecidoVistos.has(t.cartao);
               const primeiraOcorrencia = desconhecido && !jaVisto;
               if (desconhecido) cartaoDesconhecidoVistos.add(t.cartao);
@@ -349,17 +430,18 @@ export default function ImportarCsvPage() {
                       {cadastroAberto === chave ? (
                         <div className="flex items-center gap-2 flex-wrap bg-surface border border-warning-border rounded-sm py-2.5 px-3">
                           <span className="text-[12.5px] text-warning">Cadastrar {t.cartao} como</span>
-                          <select className="text-[13px] py-1.5 px-2 border border-input-border rounded-sm">
+                          <select
+                            value={bandeiraEscolhida[chave] || parseCartaoCsv(t.cartao).bandeira}
+                            onChange={(e) => setBandeiraEscolhida((b) => ({ ...b, [chave]: e.target.value }))}
+                            className="text-[13px] py-1.5 px-2 border border-input-border rounded-sm"
+                          >
                             <option value="Visa">Visa</option>
                             <option value="MasterCard">MasterCard</option>
                             <option value="Amex">Amex</option>
                             <option value="Elo">Elo</option>
                           </select>
                           <button
-                            onClick={() => {
-                              setCartoesExtras((c) => [...c, t.cartao]);
-                              setCadastroAberto(null);
-                            }}
+                            onClick={() => cadastrarCartao(chave, t.cartao)}
                             className="font-body text-[12.5px] font-bold bg-ink text-text-on-dark border-none rounded-btn py-1.5 px-3 cursor-pointer whitespace-nowrap"
                           >
                             Cadastrar · aplica a {contagemPorCartao.get(t.cartao) || 1} iguais
@@ -482,6 +564,8 @@ export default function ImportarCsvPage() {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

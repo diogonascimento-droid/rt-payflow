@@ -1,25 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { NavBar } from "@/components/NavBar";
 import { StatusBadge } from "@/components/badges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SlideOverPanel, Field } from "@/components/SlideOverPanel";
-import { PLATAFORMAS as PLATAFORMAS_INICIAIS, CONTAS as CONTAS_INICIAIS, CARTOES as CARTOES_INICIAIS } from "@/lib/mockData";
+import { CarregandoState, ErroState } from "@/components/AsyncState";
+import { useLancamentos, usePlataformas, useContas, useCartoes, contarUso } from "@/lib/supabase/hooks";
+import {
+  criarPlataforma, atualizarPlataforma, excluirPlataforma,
+  criarConta, atualizarConta, excluirConta,
+  criarCartao, atualizarCartao, excluirCartao,
+} from "@/lib/supabase/queries";
 import { PlataformaCadastro, ContaCadastro, CartaoCadastro } from "@/lib/types";
+import { cartaoRotulo } from "@/lib/format";
 
 type Aba = "plataformas" | "contas" | "cartoes";
-
-let seq = 100;
-const novoId = (p: string) => p + (seq++).toString(36);
 
 type Confirmacao = { tipo: "plataforma" | "conta" | "cartao"; id: string; texto: string };
 
 export default function CadastrosPage() {
   const [aba, setAba] = useState<Aba>("plataformas");
-  const [plataformas, setPlataformas] = useState<PlataformaCadastro[]>(PLATAFORMAS_INICIAIS);
-  const [contas, setContas] = useState<ContaCadastro[]>(CONTAS_INICIAIS);
-  const [cartoes, setCartoes] = useState<CartaoCadastro[]>(CARTOES_INICIAIS);
+  const { plataformas, setPlataformas, carregando: carregandoP, erro: erroP, recarregar: recarregarP } = usePlataformas();
+  const { contas, setContas, carregando: carregandoC, erro: erroC, recarregar: recarregarC } = useContas();
+  const { cartoes, setCartoes, carregando: carregandoK, erro: erroK, recarregar: recarregarK } = useCartoes();
+  const { lancamentos } = useLancamentos();
+  const { porConta, porCartao } = useMemo(() => contarUso(lancamentos), [lancamentos]);
+
+  const carregando = carregandoP || carregandoC || carregandoK;
+  const erro = erroP || erroC || erroK;
+  const recarregar = () => {
+    recarregarP();
+    recarregarC();
+    recarregarK();
+  };
+
   const [painel, setPainel] = useState<
     | { tipo: "plataforma"; item: PlataformaCadastro }
     | { tipo: "conta"; item: ContaCadastro }
@@ -27,6 +42,7 @@ export default function CadastrosPage() {
     | null
   >(null);
   const [confirmando, setConfirmando] = useState<Confirmacao | null>(null);
+  const [acaoErro, setAcaoErro] = useState<string | null>(null);
 
   const abas: { chave: Aba; nome: string }[] = [
     { chave: "plataformas", nome: "Plataformas" },
@@ -51,6 +67,20 @@ export default function CadastrosPage() {
         ))}
       </div>
 
+      {acaoErro && (
+        <div className="bg-danger-bg border-b border-danger-border text-danger text-[13px] py-2 px-7 flex items-center gap-3">
+          {acaoErro}
+          <button onClick={() => setAcaoErro(null)} className="ml-auto bg-transparent border-none text-danger underline cursor-pointer">
+            dispensar
+          </button>
+        </div>
+      )}
+
+      {carregando ? (
+        <CarregandoState />
+      ) : erro ? (
+        <ErroState mensagem={erro} onRetry={recarregar} />
+      ) : (
       <div className="py-5 px-7 pb-16 flex flex-col gap-3.5 max-w-[980px] mx-auto w-full">
         {aba === "plataformas" && (
           <>
@@ -79,7 +109,7 @@ export default function CadastrosPage() {
                     <span className="w-[80px]">
                       <StatusBadge
                         ativa={p.ativa}
-                        onClick={() => setPlataformas((ps) => ps.map((x) => (x.id === p.id ? { ...x, ativa: !x.ativa } : x)))}
+                        onClick={() => salvarPlataforma({ ...p, ativa: !p.ativa })}
                       />
                     </span>
                     <span className="w-[110px] text-right whitespace-nowrap">
@@ -131,14 +161,16 @@ export default function CadastrosPage() {
                 <span className="w-[76px]">Status</span>
                 <span className="w-[160px] text-right">Ações</span>
               </div>
-              {contas.map((c) => (
+              {contas.map((c) => {
+                const qtd = porConta.get(c.nome) || 0;
+                return (
                 <div key={c.id} className="flex items-center py-2.5 px-4 border-b border-divider last:border-b-0">
                   <span className="w-[130px] text-[12.5px] text-text-muted">{c.plataforma}</span>
                   <span className="flex-1 text-[14px] font-medium truncate pr-2">{c.nome}</span>
                   <span className="flex-1 text-[13px] text-text-muted truncate pr-2">{c.cliente}</span>
                   <span className="w-[150px] font-mono text-[12px] text-text-muted truncate">{c.idConta}</span>
                   <span className="w-[76px]">
-                    <StatusBadge ativa={c.ativa} onClick={() => setContas((cs) => cs.map((x) => (x.id === c.id ? { ...x, ativa: !x.ativa } : x)))} />
+                    <StatusBadge ativa={c.ativa} onClick={() => salvarConta({ ...c, ativa: !c.ativa })} />
                   </span>
                   <span className="w-[160px] text-right whitespace-nowrap">
                     <button
@@ -147,7 +179,7 @@ export default function CadastrosPage() {
                     >
                       editar
                     </button>
-                    {c.qtdLancamentos === 0 ? (
+                    {qtd === 0 ? (
                       <button
                         onClick={() => setConfirmando({ tipo: "conta", id: c.id, texto: `Excluir a conta ${c.nome}? Essa ação não pode ser desfeita.` })}
                         className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
@@ -155,13 +187,13 @@ export default function CadastrosPage() {
                         excluir
                       </button>
                     ) : (
-                      <span className="text-[11px] text-text-faint-2" title={`${c.qtdLancamentos} lançamento(s) usam esta conta — desative em vez de excluir`}>
-                        {c.qtdLancamentos} lanç.
+                      <span className="text-[11px] text-text-faint-2" title={`${qtd} lançamento(s) usam esta conta — desative em vez de excluir`}>
+                        {qtd} lanç.
                       </span>
                     )}
                   </span>
                 </div>
-              ))}
+              );})}
             </div>
           </>
         )}
@@ -186,7 +218,9 @@ export default function CadastrosPage() {
                 <span className="w-[76px]">Status</span>
                 <span className="w-[160px] text-right">Ações</span>
               </div>
-              {cartoes.map((c) => (
+              {cartoes.map((c) => {
+                const qtd = porCartao.get(cartaoRotulo(c)) || 0;
+                return (
                 <div key={c.id} className="flex items-center py-2.5 px-4 border-b border-divider last:border-b-0">
                   <span className="w-[175px] font-mono text-[13px] whitespace-nowrap">
                     {c.bandeira} ···· {c.final4}
@@ -195,7 +229,7 @@ export default function CadastrosPage() {
                   <span className="w-[110px] font-mono text-[12.5px] text-text-muted">dia {c.fechamento ?? "—"}</span>
                   <span className="w-[110px] font-mono text-[12.5px] text-text-muted">dia {c.vencimento ?? "—"}</span>
                   <span className="w-[76px]">
-                    <StatusBadge ativa={c.ativa} onClick={() => setCartoes((cs) => cs.map((x) => (x.id === c.id ? { ...x, ativa: !x.ativa } : x)))} />
+                    <StatusBadge ativa={c.ativa} onClick={() => salvarCartao({ ...c, ativa: !c.ativa })} />
                   </span>
                   <span className="w-[160px] text-right whitespace-nowrap">
                     <button
@@ -204,7 +238,7 @@ export default function CadastrosPage() {
                     >
                       editar
                     </button>
-                    {c.qtdLancamentos === 0 ? (
+                    {qtd === 0 ? (
                       <button
                         onClick={() => setConfirmando({ tipo: "cartao", id: c.id, texto: `Excluir o cartão ${c.bandeira} ···· ${c.final4}? Essa ação não pode ser desfeita.` })}
                         className="font-body text-[12px] bg-transparent border-none text-danger-strong underline cursor-pointer py-0.5 px-1"
@@ -212,58 +246,56 @@ export default function CadastrosPage() {
                         excluir
                       </button>
                     ) : (
-                      <span className="text-[11px] text-text-faint-2" title={`${c.qtdLancamentos} lançamento(s) usam este cartão — desative em vez de excluir`}>
-                        {c.qtdLancamentos} lanç.
+                      <span className="text-[11px] text-text-faint-2" title={`${qtd} lançamento(s) usam este cartão — desative em vez de excluir`}>
+                        {qtd} lanç.
                       </span>
                     )}
                   </span>
                 </div>
-              ))}
+              );})}
             </div>
           </>
         )}
       </div>
+      )}
 
       {painel?.tipo === "plataforma" && (
-        <PainelPlataforma
-          item={painel.item}
-          onClose={() => setPainel(null)}
-          onSalvar={(item) => {
-            setPlataformas((ps) => (item.id ? ps.map((x) => (x.id === item.id ? item : x)) : [...ps, { ...item, id: novoId("pf") }]));
-            setPainel(null);
-          }}
-        />
+        <PainelPlataforma item={painel.item} onClose={() => setPainel(null)} onSalvar={salvarPlataforma} />
       )}
       {painel?.tipo === "conta" && (
         <PainelConta
           item={painel.item}
           plataformasNomes={plataformas.map((p) => p.nome)}
           onClose={() => setPainel(null)}
-          onSalvar={(item) => {
-            setContas((cs) => (item.id ? cs.map((x) => (x.id === item.id ? item : x)) : [...cs, { ...item, id: novoId("c") }]));
-            setPainel(null);
-          }}
+          onSalvar={salvarConta}
         />
       )}
       {painel?.tipo === "cartao" && (
-        <PainelCartao
-          item={painel.item}
-          onClose={() => setPainel(null)}
-          onSalvar={(item) => {
-            setCartoes((cs) => (item.id ? cs.map((x) => (x.id === item.id ? item : x)) : [...cs, { ...item, id: novoId("k") }]));
-            setPainel(null);
-          }}
-        />
+        <PainelCartao item={painel.item} onClose={() => setPainel(null)} onSalvar={salvarCartao} />
       )}
 
       {confirmando && (
         <ConfirmDialog
           title="Excluir cadastro?"
           text={confirmando.texto}
-          onConfirm={() => {
-            if (confirmando.tipo === "plataforma") setPlataformas((ps) => ps.filter((x) => x.id !== confirmando.id));
-            if (confirmando.tipo === "conta") setContas((cs) => cs.filter((x) => x.id !== confirmando.id));
-            if (confirmando.tipo === "cartao") setCartoes((cs) => cs.filter((x) => x.id !== confirmando.id));
+          onConfirm={async () => {
+            try {
+              if (confirmando.tipo === "plataforma") {
+                await excluirPlataforma(confirmando.id);
+                setPlataformas((ps) => ps.filter((x) => x.id !== confirmando.id));
+              }
+              if (confirmando.tipo === "conta") {
+                await excluirConta(confirmando.id);
+                setContas((cs) => cs.filter((x) => x.id !== confirmando.id));
+              }
+              if (confirmando.tipo === "cartao") {
+                await excluirCartao(confirmando.id);
+                setCartoes((cs) => cs.filter((x) => x.id !== confirmando.id));
+              }
+              setAcaoErro(null);
+            } catch (e) {
+              setAcaoErro((e as Error).message);
+            }
             setConfirmando(null);
           }}
           onCancel={() => setConfirmando(null)}
@@ -271,6 +303,54 @@ export default function CadastrosPage() {
       )}
     </div>
   );
+
+  async function salvarPlataforma(item: PlataformaCadastro) {
+    try {
+      if (item.id) {
+        const atualizado = await atualizarPlataforma(item);
+        setPlataformas((ps) => ps.map((x) => (x.id === item.id ? atualizado : x)));
+      } else {
+        const criado = await criarPlataforma(item);
+        setPlataformas((ps) => [...ps, criado]);
+      }
+      setPainel(null);
+      setAcaoErro(null);
+    } catch (e) {
+      setAcaoErro((e as Error).message);
+    }
+  }
+
+  async function salvarConta(item: ContaCadastro) {
+    try {
+      if (item.id) {
+        const atualizado = await atualizarConta(item);
+        setContas((cs) => cs.map((x) => (x.id === item.id ? atualizado : x)));
+      } else {
+        const criado = await criarConta(item);
+        setContas((cs) => [...cs, criado]);
+      }
+      setPainel(null);
+      setAcaoErro(null);
+    } catch (e) {
+      setAcaoErro((e as Error).message);
+    }
+  }
+
+  async function salvarCartao(item: CartaoCadastro) {
+    try {
+      if (item.id) {
+        const atualizado = await atualizarCartao(item);
+        setCartoes((cs) => cs.map((x) => (x.id === item.id ? atualizado : x)));
+      } else {
+        const criado = await criarCartao(item);
+        setCartoes((cs) => [...cs, criado]);
+      }
+      setPainel(null);
+      setAcaoErro(null);
+    } catch (e) {
+      setAcaoErro((e as Error).message);
+    }
+  }
 }
 
 function PainelPlataforma({ item, onClose, onSalvar }: { item: PlataformaCadastro; onClose: () => void; onSalvar: (p: PlataformaCadastro) => void }) {

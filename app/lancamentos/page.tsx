@@ -9,17 +9,30 @@ import { OriginBadge } from "@/components/badges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SlideOverPanel, Field } from "@/components/SlideOverPanel";
 import { CurrencyInput } from "@/components/CurrencyInput";
+import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { usePeriod } from "@/lib/usePeriod";
 import { useCombobox } from "@/lib/useCombobox";
-import { LANCAMENTOS as LANCAMENTOS_INICIAIS, PLATAFORMAS, CONTAS_POR_PLATAFORMA, CARTAO_NOMES } from "@/lib/mockData";
+import { useLancamentos, usePlataformas, useContas, useCartoes } from "@/lib/supabase/hooks";
+import { atualizarLancamento, excluirLancamentos } from "@/lib/supabase/queries";
 import { filtrarPorPeriodo, agruparPorDia } from "@/lib/aggregate";
-import { BRL } from "@/lib/format";
+import { BRL, cartaoRotulo } from "@/lib/format";
 import { Lancamento } from "@/lib/types";
 
 type Confirmacao = { tipo: "single" | "lote"; ids: string[]; texto: string };
 
 export default function LancamentosPage() {
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>(LANCAMENTOS_INICIAIS);
+  const { lancamentos, setLancamentos, carregando, erro, recarregar } = useLancamentos();
+  const { plataformas } = usePlataformas();
+  const { contas } = useContas();
+  const { cartoes } = useCartoes();
+  const CONTAS_POR_PLATAFORMA = useMemo(() => {
+    const mapa: Record<string, string[]> = {};
+    contas.forEach((c) => {
+      (mapa[c.plataforma] ||= []).push(c.nome);
+    });
+    return mapa;
+  }, [contas]);
+  const CARTAO_NOMES = useMemo(() => cartoes.map(cartaoRotulo), [cartoes]);
   const period = usePeriod();
   const [plataforma, setPlataforma] = useState("Todas");
   const [conta, setConta] = useState("");
@@ -29,6 +42,7 @@ export default function LancamentosPage() {
   const [selecionados, setSelecionados] = useState<Record<string, boolean>>({});
   const [editando, setEditando] = useState<Lancamento | null>(null);
   const [confirmando, setConfirmando] = useState<Confirmacao | null>(null);
+  const [acaoErro, setAcaoErro] = useState<string | null>(null);
 
   const contasFiltro = plataforma === "Todas" ? Object.values(CONTAS_POR_PLATAFORMA).flat() : CONTAS_POR_PLATAFORMA[plataforma] || [];
   const contaCombo = useCombobox(["Todas as contas", ...contasFiltro], conta || "Todas as contas", (v) => setConta(v === "Todas as contas" ? "" : v));
@@ -67,13 +81,19 @@ export default function LancamentosPage() {
     });
   };
 
-  const excluir = (ids: string[]) => {
-    setLancamentos((ls) => ls.filter((l) => !ids.includes(l.id)));
-    setSelecionados((s) => {
-      const novo = { ...s };
-      ids.forEach((id) => delete novo[id]);
-      return novo;
-    });
+  const excluir = async (ids: string[]) => {
+    try {
+      await excluirLancamentos(ids);
+      setLancamentos((ls) => ls.filter((l) => !ids.includes(l.id)));
+      setSelecionados((s) => {
+        const novo = { ...s };
+        ids.forEach((id) => delete novo[id]);
+        return novo;
+      });
+      setAcaoErro(null);
+    } catch (e) {
+      setAcaoErro((e as Error).message);
+    }
     setConfirmando(null);
   };
 
@@ -89,6 +109,21 @@ export default function LancamentosPage() {
         }
       />
 
+      {acaoErro && (
+        <div className="bg-danger-bg border-b border-danger-border text-danger text-[13px] py-2 px-7 flex items-center gap-3">
+          {acaoErro}
+          <button onClick={() => setAcaoErro(null)} className="ml-auto bg-transparent border-none text-danger underline cursor-pointer">
+            dispensar
+          </button>
+        </div>
+      )}
+
+      {carregando ? (
+        <CarregandoState />
+      ) : erro ? (
+        <ErroState mensagem={erro} onRetry={recarregar} />
+      ) : (
+      <>
       <div className="bg-surface border-b border-border py-3 px-7 flex items-center gap-2.5 flex-wrap relative z-10">
         <PeriodPicker period={period} variant="light" />
 
@@ -101,7 +136,7 @@ export default function LancamentosPage() {
           className="text-[13px] py-2 px-2.5 rounded-btn bg-[#F1F3EE] text-text-body border border-[#DCE0D9]"
         >
           <option value="Todas">Todas as plataformas</option>
-          {PLATAFORMAS.map((p) => (
+          {plataformas.map((p) => (
             <option key={p.id} value={p.nome}>
               {p.nome}
             </option>
@@ -218,14 +253,25 @@ export default function LancamentosPage() {
         <span className="font-mono text-[12.5px] text-text-muted">{filtrados.length} lançamentos filtrados</span>
         <span className="ml-auto font-mono text-[16px] font-semibold tabular-nums">{BRL(totalFiltrado)}</span>
       </div>
+      </>
+      )}
 
       {editando && (
         <EditarLancamento
           lancamento={editando}
+          plataformas={plataformas.map((p) => p.nome)}
+          contasPorPlataforma={CONTAS_POR_PLATAFORMA}
+          cartaoNomes={CARTAO_NOMES}
           onCancel={() => setEditando(null)}
-          onSalvar={(atualizado) => {
-            setLancamentos((ls) => ls.map((l) => (l.id === atualizado.id ? atualizado : l)));
-            setEditando(null);
+          onSalvar={async (form) => {
+            try {
+              const atualizado = await atualizarLancamento(form);
+              setLancamentos((ls) => ls.map((l) => (l.id === atualizado.id ? atualizado : l)));
+              setEditando(null);
+              setAcaoErro(null);
+            } catch (e) {
+              setAcaoErro((e as Error).message);
+            }
           }}
         />
       )}
@@ -321,16 +367,22 @@ function RowGroup({
 
 function EditarLancamento({
   lancamento,
+  plataformas,
+  contasPorPlataforma,
+  cartaoNomes,
   onCancel,
   onSalvar,
 }: {
   lancamento: Lancamento;
+  plataformas: string[];
+  contasPorPlataforma: Record<string, string[]>;
+  cartaoNomes: string[];
   onCancel: () => void;
   onSalvar: (l: Lancamento) => void;
 }) {
   const [form, setForm] = useState(lancamento);
-  const contaCombo = useCombobox(CONTAS_POR_PLATAFORMA[form.plataforma] || [], form.conta, (v) => setForm((f) => ({ ...f, conta: v })));
-  const cartaoCombo = useCombobox(CARTAO_NOMES, form.cartao, (v) => setForm((f) => ({ ...f, cartao: v })));
+  const contaCombo = useCombobox(contasPorPlataforma[form.plataforma] || [], form.conta, (v) => setForm((f) => ({ ...f, conta: v })));
+  const cartaoCombo = useCombobox(cartaoNomes, form.cartao, (v) => setForm((f) => ({ ...f, cartao: v })));
 
   return (
     <SlideOverPanel
@@ -363,9 +415,9 @@ function EditarLancamento({
           onChange={(e) => setForm((f) => ({ ...f, plataforma: e.target.value, conta: "" }))}
           className="text-[14px] py-2.5 px-2.5 border border-input-border rounded-sm"
         >
-          {PLATAFORMAS.map((p) => (
-            <option key={p.id} value={p.nome}>
-              {p.nome}
+          {plataformas.map((p) => (
+            <option key={p} value={p}>
+              {p}
             </option>
           ))}
         </select>

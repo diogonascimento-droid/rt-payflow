@@ -4,15 +4,18 @@ import { useMemo } from "react";
 import { NavBar } from "@/components/NavBar";
 import { usePeriod } from "@/lib/usePeriod";
 import { PeriodPicker } from "@/components/PeriodPicker";
-import { LANCAMENTOS } from "@/lib/mockData";
+import { useLancamentos } from "@/lib/supabase/hooks";
+import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { filtrarPorPeriodo, agruparPorCartao, agruparPorConta } from "@/lib/aggregate";
 import { BRL, fmtData } from "@/lib/format";
+import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 
 export default function RelatorioPage() {
+  const { lancamentos, carregando, erro, recarregar } = useLancamentos();
   const period = usePeriod();
   const doPeriodo = useMemo(
-    () => filtrarPorPeriodo(LANCAMENTOS, period.periodoInicio, period.periodoFim),
-    [period.periodoInicio, period.periodoFim]
+    () => filtrarPorPeriodo(lancamentos, period.periodoInicio, period.periodoFim),
+    [lancamentos, period.periodoInicio, period.periodoFim]
   );
 
   const cartoes = useMemo(() => agruparPorCartao(doPeriodo), [doPeriodo]);
@@ -21,7 +24,7 @@ export default function RelatorioPage() {
   const nLanc = doPeriodo.length;
   const csv = doPeriodo.filter((l) => l.origem === "csv").length;
   const manual = nLanc - csv;
-  const investimentoRT = doPeriodo.filter((l) => l.obs === "#InvestimentoRT").reduce((s, l) => s + l.valor, 0);
+  const investimentoRT = doPeriodo.filter((l) => temTagInvestimentoRT(l.obs)).reduce((s, l) => s + l.valor, 0);
 
   const kpis = [
     { label: "Total do período", value: BRL(totalGeral), hint: `${fmtData(period.periodoInicio)} a ${fmtData(period.periodoFim)}` },
@@ -54,6 +57,11 @@ export default function RelatorioPage() {
         />
       </div>
 
+      {carregando ? (
+        <CarregandoState />
+      ) : erro ? (
+        <ErroState mensagem={erro} onRetry={recarregar} />
+      ) : (
       <div className="flex-1 flex justify-center py-8 px-4 bg-[#DADAD4] print:bg-white print:p-0">
         <section
           className="bg-white text-[#141412] flex flex-col w-full max-w-[210mm] min-h-[297mm] py-[16mm] px-[16mm] pb-[14mm] box-border shadow-[0_4px_24px_rgba(0,0,0,0.15)] print:shadow-none"
@@ -166,6 +174,7 @@ export default function RelatorioPage() {
           </div>
         </section>
       </div>
+      )}
     </div>
   );
 }

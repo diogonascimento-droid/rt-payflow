@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { fmtData, mesmoDia, MESES } from "./format";
-import { HOJE } from "./mockData";
+
+const HOJE = new Date();
 
 export type PeriodoCelula = {
   vazio: boolean;
