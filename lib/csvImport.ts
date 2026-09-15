@@ -1,8 +1,16 @@
 export type LinhaCsv = { data: string; id: string; cartao: string; valor: number };
 
 export type ResultadoCsv =
-  | { ok: true; contaId: string; periodo: string; rows: LinhaCsv[] }
+  | { ok: true; contaId: string; periodo: string; rows: LinhaCsv[]; linhasIgnoradas: number }
   | { ok: false; tipo: "invalido" | "vazio" | "conta_desconhecida"; contaId?: string; periodo?: string; rows?: LinhaCsv[] };
+
+/** O relatório do Meta também traz formas de pagamento que não são cartão
+ * (ex.: "Crédito para anúncio", saldo de cupom). O RT PayFlow só controla
+ * cartão, então essas linhas são ignoradas na importação. Um cartão real
+ * sempre aparece mascarado terminando em 4 dígitos ("Visa ···· 4400"). */
+function pareceCartao(formaPagamento: string): boolean {
+  return /\d{4}\s*$/.test(formaPagamento.trim());
+}
 
 function parseCsvLine(line: string): string[] {
   const out: string[] = [];
@@ -58,6 +66,7 @@ export function parseMetaCsv(text: string): ResultadoCsv {
   let dentroTabela = false;
   let colFormaIdx = -1;
   let encontrouTabela = false;
+  let linhasIgnoradas = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -91,11 +100,15 @@ export function parseMetaCsv(text: string): ResultadoCsv {
     const valor = parseValorBR(cols[valorIdx]);
     if (isNaN(valor)) continue;
     const cartao = colFormaIdx !== -1 ? cols[colFormaIdx] : formaAtual;
+    if (!pareceCartao(cartao)) {
+      linhasIgnoradas++;
+      continue;
+    }
     rows.push({ data: cols[0], id: cols[1], cartao, valor });
   }
 
   if (!encontrouTabela) return { ok: false, tipo: "invalido" };
   if (rows.length === 0) return { ok: false, tipo: "vazio" };
 
-  return { ok: true, contaId, periodo, rows };
+  return { ok: true, contaId, periodo, rows, linhasIgnoradas };
 }

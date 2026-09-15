@@ -22,8 +22,22 @@ import { BRL, cartaoRotulo } from "@/lib/format";
 import { parseMetaCsv, LinhaCsv } from "@/lib/csvImport";
 
 type Step = "upload" | "lendo" | "erro" | "preview" | "resultado";
-type ErroInfo = { tipo: "invalido" | "vazio" | "conta_desconhecida"; nome: string; contaId?: string; periodo?: string; rows?: LinhaCsv[] };
-type Arquivo = { nome: string; contaId: string; contaNome: string; periodo: string; transacoes: (LinhaCsv & { nova: boolean })[] };
+type ErroInfo = {
+  tipo: "invalido" | "vazio" | "conta_desconhecida";
+  nome: string;
+  contaId?: string;
+  periodo?: string;
+  rows?: LinhaCsv[];
+  linhasIgnoradas?: number;
+};
+type Arquivo = {
+  nome: string;
+  contaId: string;
+  contaNome: string;
+  periodo: string;
+  transacoes: (LinhaCsv & { nova: boolean })[];
+  linhasIgnoradas: number;
+};
 
 function parseCartaoCsv(raw: string): { bandeira: string; final4: string } {
   const partes = raw.trim().split(/\s+/);
@@ -63,7 +77,14 @@ export default function ImportarCsvPage() {
   const mapCombo = useCombobox(nomesContasMeta, contaMapeada, (nome) => setContaMapeada(nome));
   const trocarCombo = useCombobox(nomesContasMeta, "", (nome) => setContaTrocada(nome));
 
-  async function montarPreview(contaId: string, contaNome: string, periodo: string, rows: LinhaCsv[], nome: string) {
+  async function montarPreview(
+    contaId: string,
+    contaNome: string,
+    periodo: string,
+    rows: LinhaCsv[],
+    nome: string,
+    linhasIgnoradas: number
+  ) {
     let existentes: Set<string>;
     try {
       existentes = await idsTransacaoExistentes(rows.map((r) => r.id));
@@ -80,7 +101,7 @@ export default function ImportarCsvPage() {
       setErro({ tipo: "vazio", nome });
       return;
     }
-    setArquivo({ nome, contaId, contaNome, periodo, transacoes });
+    setArquivo({ nome, contaId, contaNome, periodo, transacoes, linhasIgnoradas });
     setContaTrocada(null);
     setMostrarImportadas(false);
     setBuscaImportadas("");
@@ -97,10 +118,10 @@ export default function ImportarCsvPage() {
     const contaNome = CONTAS_META_POR_ID[r.contaId];
     if (!contaNome) {
       setStep("erro");
-      setErro({ tipo: "conta_desconhecida", nome, contaId: r.contaId, periodo: r.periodo, rows: r.rows });
+      setErro({ tipo: "conta_desconhecida", nome, contaId: r.contaId, periodo: r.periodo, rows: r.rows, linhasIgnoradas: r.linhasIgnoradas });
       return;
     }
-    await montarPreview(r.contaId, contaNome, r.periodo, r.rows, nome);
+    await montarPreview(r.contaId, contaNome, r.periodo, r.rows, nome, r.linhasIgnoradas);
   }
 
   function lerArquivo(file: File) {
@@ -334,7 +355,7 @@ export default function ImportarCsvPage() {
                     } catch (e) {
                       setErroAcao((e as Error).message);
                     }
-                    await montarPreview(erro.contaId, contaMapeada, erro.periodo || "—", erro.rows, erro.nome);
+                    await montarPreview(erro.contaId, contaMapeada, erro.periodo || "—", erro.rows, erro.nome, erro.linhasIgnoradas || 0);
                     setContaMapeada("");
                   }}
                   className="self-start font-body text-[13.5px] font-bold bg-ink text-text-on-dark border-none rounded-btn py-2 px-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -365,6 +386,12 @@ export default function ImportarCsvPage() {
             <div className="flex flex-col gap-0.5">
               <h1 className="font-heading text-[19px] font-bold m-0">{arquivo.nome}</h1>
               <span className="font-mono text-[12px] text-text-faint">Período do relatório: {arquivo.periodo}</span>
+              {arquivo.linhasIgnoradas > 0 && (
+                <span className="font-mono text-[11.5px] text-text-faint-2">
+                  {arquivo.linhasIgnoradas} linha{arquivo.linhasIgnoradas > 1 ? "s" : ""} de crédito Meta ignorada
+                  {arquivo.linhasIgnoradas > 1 ? "s" : ""} (não é cobrança de cartão)
+                </span>
+              )}
             </div>
             <button
               onClick={() => {
