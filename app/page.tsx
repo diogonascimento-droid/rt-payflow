@@ -11,7 +11,6 @@ import { useAuth } from "@/lib/supabase/useAuth";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { filtrarPorPeriodo, agruparPorCartao, agruparPorConta, agruparPorDiaContaCartao } from "@/lib/aggregate";
 import { BRL, fmtData } from "@/lib/format";
-import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 
 export default function VisaoGeralPage() {
   const { isEditor } = useAuth();
@@ -40,7 +39,8 @@ export default function VisaoGeralPage() {
   const nLanc = filtrados.length;
   const csv = filtrados.filter((l) => l.origem === "csv").length;
   const manual = nLanc - csv;
-  const investimentoRT = filtrados.filter((l) => temTagInvestimentoRT(l.obs)).reduce((s, l) => s + l.valor, 0);
+  const totalMeta = filtrados.filter((l) => l.plataforma === "Meta").reduce((s, l) => s + l.valor, 0);
+  const totalGoogle = filtrados.filter((l) => l.plataforma === "Google").reduce((s, l) => s + l.valor, 0);
   const semConta = doPeriodo.filter((l) => !l.conta).length;
 
   const grupos = useMemo(() => {
@@ -85,8 +85,8 @@ export default function VisaoGeralPage() {
         <div className="flex items-end gap-10 flex-wrap pt-3">
           <HeroStat label={filtroCartao ? "Total no cartão selecionado" : "Total do período"} value={BRL(totalGeral)} />
           <KpiTile label="Lançamentos" value={String(nLanc)} hint={`${csv} CSV · ${manual} manuais`} />
-          <KpiTile label="Ticket médio" value={BRL(nLanc ? totalGeral / nLanc : 0)} hint={filtroCartao ? "neste cartão" : undefined} />
-          <KpiTile label="Investimento RT" value={BRL(investimentoRT)} hint="tag na observação" />
+          <KpiTile label="Total Meta" value={BRL(totalMeta)} />
+          <KpiTile label="Total Google" value={BRL(totalGoogle)} />
           {semConta > 0 && !filtroCartao && (
             <div className="ml-auto flex items-center gap-2.5 bg-[#2A1D18] border border-[#4A2C22] text-[#F0A58F] rounded-sm py-2 px-3.5 text-[12.5px] whitespace-nowrap">
               {semConta} lançamento(s) sem conta vinculada
@@ -240,7 +240,7 @@ export default function VisaoGeralPage() {
             <div className="text-[12px] text-text-faint leading-relaxed text-pretty">
               Contas Meta aparecem no nível da conta. Lançamentos com a tag{" "}
               <span className="font-mono text-[11.5px] bg-[#EFF1EC] rounded-[3px] py-0.5 px-1">Investimento RT</span> na
-              observação entram no total e no KPI próprio.
+              observação entram no total normalmente.
             </div>
           </section>
         </div>
