@@ -42,6 +42,11 @@ export function PeriodPicker({
               <button onClick={period.esteAno} className="text-left text-[13px] bg-transparent border-none py-1.5 px-1.5 rounded-[5px] cursor-pointer hover:bg-workspace">
                 Este ano
               </button>
+              {period.temDatasDisponiveis && (
+                <button onClick={period.periodoTotal} className="text-left text-[13px] bg-transparent border-none py-1.5 px-1.5 rounded-[5px] cursor-pointer hover:bg-workspace">
+                  Período total
+                </button>
+              )}
             </div>
             <div className="flex flex-col gap-2 w-[238px]">
               <div className="flex items-center justify-between">

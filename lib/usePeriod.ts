@@ -77,6 +77,14 @@ export function usePeriod(inicial?: { inicio: Date; fim: Date }, datasDisponivei
     definirIntervalo(ini < fim ? ini : fim, ini < fim ? fim : ini, true);
   }, [calInicio, calFim, periodoInicio, definirIntervalo]);
 
+  const periodoTotal = useCallback(() => {
+    if (!datasDisponiveis || datasDisponiveis.length === 0) return;
+    const datas = datasDisponiveis.map(parseBR);
+    const min = datas.reduce((m, d) => (d < m ? d : m), datas[0]);
+    const max = datas.reduce((m, d) => (d > m ? d : m), datas[0]);
+    definirIntervalo(min, max, true);
+  }, [datasDisponiveis, definirIntervalo]);
+
   const ajustouAutomaticamente = useRef(false);
   useEffect(() => {
     if (ajustouAutomaticamente.current || inicial) return;
@@ -130,6 +138,8 @@ export function usePeriod(inicial?: { inicio: Date; fim: Date }, datasDisponivei
     mesAtual: () => definirIntervalo(new Date(HOJE.getFullYear(), HOJE.getMonth(), 1), new Date(HOJE.getFullYear(), HOJE.getMonth() + 1, 0), true),
     mesPassado: () => definirIntervalo(new Date(HOJE.getFullYear(), HOJE.getMonth() - 1, 1), new Date(HOJE.getFullYear(), HOJE.getMonth(), 0), true),
     esteAno: () => definirIntervalo(new Date(HOJE.getFullYear(), 0, 1), new Date(HOJE.getFullYear(), 11, 31), true),
+    periodoTotal,
+    temDatasDisponiveis: !!datasDisponiveis && datasDisponiveis.length > 0,
     aplicar,
   };
 }
