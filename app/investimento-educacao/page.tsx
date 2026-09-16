@@ -6,8 +6,8 @@ import { CurrencyInput } from "@/components/CurrencyInput";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { useAuth } from "@/lib/supabase/useAuth";
 import { useEduUnidades, useEduMeses, useEduLancamentos } from "@/lib/supabase/hooks";
-import { criarEduMes, excluirEduMes, salvarEduCelula } from "@/lib/supabase/queries";
-import { EduLancamento, EduMes } from "@/lib/types";
+import { criarEduMes, salvarEduCelula } from "@/lib/supabase/queries";
+import { EduLancamento } from "@/lib/types";
 
 const MESES_SEQ = [
   "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
@@ -57,8 +57,10 @@ export default function InvestimentoEducacaoPage() {
   const [notaAberta, setNotaAberta] = useState<string | null>(null);
   const [notaEditTexto, setNotaEditTexto] = useState("");
   const [erroAcao, setErroAcao] = useState<string | null>(null);
+  const [mesesOcultos, setMesesOcultos] = useState<Set<string>>(new Set());
 
   const anos = useMemo(() => Array.from(new Set(meses.map((m) => m.ano))), [meses]);
+  const mesesVisiveis = useMemo(() => meses.filter((m) => !mesesOcultos.has(m.id)), [meses, mesesOcultos]);
 
   useEffect(() => {
     if (meses.length === 0) return;
@@ -149,22 +151,25 @@ export default function InvestimentoEducacaoPage() {
     }
   }
 
-  async function removerMes(mes: EduMes) {
-    try {
-      await excluirEduMes(mes.id);
-      setMeses((ms) => ms.filter((m) => m.id !== mes.id));
-      setEduLancamentos((ls) => ls.filter((l) => l.mesId !== mes.id));
-      if (notaAberta && stringParaChave(notaAberta).mesId === mes.id) fecharNota();
-    } catch (e) {
-      setErroAcao((e as Error).message);
-    }
+  /** Só oculta o mês da visualização (tabela e KPIs) — não apaga nada no banco. */
+  function alternarVisibilidadeMes(mesId: string) {
+    setMesesOcultos((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(mesId)) novo.delete(mesId);
+      else novo.add(mesId);
+      return novo;
+    });
+    if (notaAberta && stringParaChave(notaAberta).mesId === mesId) fecharNota();
   }
+
+  const idsMesesVisiveis = useMemo(() => new Set(mesesVisiveis.map((m) => m.id)), [mesesVisiveis]);
 
   let totalInvest = 0;
   let totalLeads = 0;
   let gastoMeta = 0;
   let gastoGoogle = 0;
   eduLancamentos.forEach((l) => {
+    if (!idsMesesVisiveis.has(l.mesId)) return;
     totalInvest += l.investimento || 0;
     totalLeads += l.leads || 0;
     if (l.investimento) {
@@ -181,7 +186,7 @@ export default function InvestimentoEducacaoPage() {
     }
   });
 
-  const mesesDoAno = meses.filter((m) => m.ano === anoSelecionado);
+  const mesesDoAno = mesesVisiveis.filter((m) => m.ano === anoSelecionado);
   const periodoLabel =
     meses.length > 0
       ? `${MES_ABREV[meses[0].nome]} ${meses[0].ano} – ${MES_ABREV[meses[meses.length - 1].nome]} ${meses[meses.length - 1].ano}`
@@ -259,7 +264,10 @@ export default function InvestimentoEducacaoPage() {
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-[12px] text-text-faint-2">Clique no marcador • de qualquer valor para adicionar ou ver um comentário.</span>
+              <span className="text-[12px] text-text-faint-2">
+                Clique no marcador • de qualquer valor para adicionar ou ver um comentário. Clique num mês abaixo pra
+                ocultá-lo da tabela e dos totais — nada é apagado, é só filtro.
+              </span>
               {isEditor && (
                 <button
                   onClick={adicionarMes}
@@ -271,30 +279,32 @@ export default function InvestimentoEducacaoPage() {
             </div>
 
             <div className="flex gap-1.5 flex-wrap">
-              {meses.map((m) => (
-                <span
-                  key={m.id}
-                  className="flex items-center gap-1.5 font-mono text-[11px] text-text-muted bg-surface border border-border rounded-pill py-1 pl-2.5 pr-1"
-                >
-                  {MES_ABREV[m.nome]} {m.ano}
-                  {isEditor && (
-                    <button
-                      onClick={() => removerMes(m)}
-                      title="Remover este mês"
-                      className="bg-transparent border-none text-text-faint-2 cursor-pointer text-[12px] leading-none p-0.5 hover:text-danger"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </span>
-              ))}
+              {meses.map((m) => {
+                const oculto = mesesOcultos.has(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => alternarVisibilidadeMes(m.id)}
+                    title={oculto ? "Mostrar este mês" : "Ocultar este mês (não apaga nada)"}
+                    className={
+                      "flex items-center gap-1.5 font-mono text-[11px] rounded-pill py-1 pl-2.5 pr-2 border cursor-pointer " +
+                      (oculto
+                        ? "text-text-faint-2 bg-workspace border-border line-through opacity-60"
+                        : "text-text-muted bg-surface border-border")
+                    }
+                  >
+                    {MES_ABREV[m.nome]} {m.ano}
+                    <span className="not-italic no-underline">{oculto ? "＋" : "✕"}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(460px,1fr))" }}>
               {unidades.map((u) => {
                 const colunas = mesesDoAno.map((m) => lookup.get(`${u.id}|${m.id}`));
-                const somaInvest = meses.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.investimento || 0), 0);
-                const somaLeads = meses.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.leads || 0), 0);
+                const somaInvest = mesesVisiveis.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.investimento || 0), 0);
+                const somaLeads = mesesVisiveis.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.leads || 0), 0);
 
                 const notaAtivaChave = notaAberta && stringParaChave(notaAberta);
                 const notaAtiva = notaAtivaChave && notaAtivaChave.unidadeId === u.id ? notaAtivaChave : null;
