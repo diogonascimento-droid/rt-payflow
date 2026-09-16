@@ -54,3 +54,27 @@ export type PlataformaCadastro = {
   nome: string;
   ativa: boolean;
 };
+
+export type EduUnidade = {
+  id: string;
+  nome: string;
+  ordem: number;
+  ativa: boolean;
+};
+
+export type EduMes = {
+  id: string;
+  nome: string; // "JUNHO", "JULHO", ...
+  ano: number;
+  ordem: number;
+};
+
+export type EduLancamento = {
+  id: string;
+  unidadeId: string;
+  mesId: string;
+  investimento: number | null;
+  leads: number | null;
+  notaInvestimento?: string;
+  notaLeads?: string;
+};

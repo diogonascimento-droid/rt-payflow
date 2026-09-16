@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Lancamento, ContaCadastro, CartaoCadastro, PlataformaCadastro } from "@/lib/types";
-import { listarLancamentos, listarContas, listarCartoes, listarPlataformas } from "./queries";
+import { Lancamento, ContaCadastro, CartaoCadastro, PlataformaCadastro, EduUnidade, EduMes, EduLancamento } from "@/lib/types";
+import { listarLancamentos, listarContas, listarCartoes, listarPlataformas, listarEduUnidades, listarEduMeses, listarEduLancamentos } from "./queries";
 
 function useSupabaseList<T>(fetcher: () => Promise<T[]>) {
   const [dados, setDados] = useState<T[]>([]);
@@ -44,6 +44,21 @@ export function useCartoes() {
 export function usePlataformas() {
   const r = useSupabaseList<PlataformaCadastro>(listarPlataformas);
   return { plataformas: r.dados, setPlataformas: r.setDados, carregando: r.carregando, erro: r.erro, recarregar: r.recarregar };
+}
+
+export function useEduUnidades() {
+  const r = useSupabaseList<EduUnidade>(listarEduUnidades);
+  return { unidades: r.dados, setUnidades: r.setDados, carregando: r.carregando, erro: r.erro, recarregar: r.recarregar };
+}
+
+export function useEduMeses() {
+  const r = useSupabaseList<EduMes>(listarEduMeses);
+  return { meses: r.dados, setMeses: r.setDados, carregando: r.carregando, erro: r.erro, recarregar: r.recarregar };
+}
+
+export function useEduLancamentos() {
+  const r = useSupabaseList<EduLancamento>(listarEduLancamentos);
+  return { eduLancamentos: r.dados, setEduLancamentos: r.setDados, carregando: r.carregando, erro: r.erro, recarregar: r.recarregar };
 }
 
 /** Conta quantos lançamentos usam cada valor de `conta` / `cartao` (pra bloquear exclusão em Cadastros). */

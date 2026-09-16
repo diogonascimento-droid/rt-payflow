@@ -28,6 +28,12 @@ ordem**:
    Google `@rtpublicity.com.br` lê os dados, e só quem está na tabela
    `editores` pode criar/editar/excluir/importar. **Antes de rodar este
    arquivo**, ative o login com Google no projeto (veja abaixo).
+4. `0004_add_editora_giovanna.sql`, `0005_permite_valor_negativo.sql` — ajustes
+   pontuais (adiciona uma editora, permite lançamento com valor negativo pra
+   reembolso do Meta).
+5. `0006_investimento_educacao.sql` — cria as tabelas da tela **Educação**
+   (`edu_unidades`, `edu_meses`, `edu_lancamentos`) e faz o backfill dos dados
+   reais da planilha "Investimento Educação UCB" (jun–set/2026).
 
 ## Login com Google (obrigatório antes de rodar 0003_auth.sql)
 
@@ -58,3 +64,4 @@ mesmo se alguém pular as duas primeiras camadas).
 - `/importar-csv` — importação do Resumo de Fatura da Meta, com deduplicação por ID de transação
 - `/cadastros` — plataformas, contas de anúncio e cartões
 - `/relatorio` — relatório do período pronto para impressão/PDF
+- `/investimento-educacao` — investimento e leads em educação por associação (UCB), lançamento manual mês a mês

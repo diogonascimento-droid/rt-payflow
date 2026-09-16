@@ -1,4 +1,4 @@
-import { Lancamento, LoteImportacao, ContaCadastro, CartaoCadastro, PlataformaCadastro } from "@/lib/types";
+import { Lancamento, LoteImportacao, ContaCadastro, CartaoCadastro, PlataformaCadastro, EduUnidade, EduMes, EduLancamento } from "@/lib/types";
 import { fmtData } from "@/lib/format";
 
 /** Converte "2026-01-25" (formato do Postgres) para "25/01/2026" (formato usado no app). */
@@ -105,6 +105,40 @@ export type LoteRow = {
   valor_importado: number;
   desfeito: boolean;
 };
+
+export type EduUnidadeRow = { id: string; nome: string; ordem: number; ativa: boolean };
+
+export function rowToEduUnidade(r: EduUnidadeRow): EduUnidade {
+  return { id: r.id, nome: r.nome, ordem: r.ordem, ativa: r.ativa };
+}
+
+export type EduMesRow = { id: string; nome: string; ano: number; ordem: number };
+
+export function rowToEduMes(r: EduMesRow): EduMes {
+  return { id: r.id, nome: r.nome, ano: r.ano, ordem: r.ordem };
+}
+
+export type EduLancamentoRow = {
+  id: string;
+  unidade_id: string;
+  mes_id: string;
+  investimento: number | null;
+  leads: number | null;
+  nota_investimento: string | null;
+  nota_leads: string | null;
+};
+
+export function rowToEduLancamento(r: EduLancamentoRow): EduLancamento {
+  return {
+    id: r.id,
+    unidadeId: r.unidade_id,
+    mesId: r.mes_id,
+    investimento: r.investimento === null ? null : Number(r.investimento),
+    leads: r.leads,
+    notaInvestimento: r.nota_investimento ?? undefined,
+    notaLeads: r.nota_leads ?? undefined,
+  };
+}
 
 export function rowToLote(r: LoteRow): LoteImportacao {
   const d = new Date(r.criado_em);

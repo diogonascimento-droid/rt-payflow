@@ -1,9 +1,11 @@
 import { supabase } from "./client";
 import {
   rowToLancamento, rowToConta, rowToCartao, rowToPlataforma, rowToLote,
+  rowToEduUnidade, rowToEduMes, rowToEduLancamento,
   brParaIso, LancamentoRow, ContaRow, CartaoRow, PlataformaRow, LoteRow,
+  EduUnidadeRow, EduMesRow, EduLancamentoRow,
 } from "./mappers";
-import { Lancamento, ContaCadastro, CartaoCadastro, PlataformaCadastro, LoteImportacao } from "@/lib/types";
+import { Lancamento, ContaCadastro, CartaoCadastro, PlataformaCadastro, LoteImportacao, EduUnidade, EduMes, EduLancamento } from "@/lib/types";
 
 function falhar(acao: string, error: { message: string }): never {
   throw new Error(`${acao}: ${error.message}`);
@@ -230,4 +232,58 @@ export async function marcarLoteDesfeito(id: string): Promise<void> {
 export async function excluirLancamentosDoLote(loteId: string): Promise<void> {
   const { error } = await supabase.from("lancamentos").delete().eq("lote_id", loteId);
   if (error) falhar("Não foi possível remover os lançamentos do lote", error);
+}
+
+// ---------- Investimento em Educação ----------
+
+export async function listarEduUnidades(): Promise<EduUnidade[]> {
+  const { data, error } = await supabase.from("edu_unidades").select("*").order("ordem");
+  if (error) falhar("Não foi possível carregar as unidades", error);
+  return (data as EduUnidadeRow[]).map(rowToEduUnidade);
+}
+
+export async function listarEduMeses(): Promise<EduMes[]> {
+  const { data, error } = await supabase.from("edu_meses").select("*").order("ordem");
+  if (error) falhar("Não foi possível carregar os meses", error);
+  return (data as EduMesRow[]).map(rowToEduMes);
+}
+
+export async function listarEduLancamentos(): Promise<EduLancamento[]> {
+  const { data, error } = await supabase.from("edu_lancamentos").select("*");
+  if (error) falhar("Não foi possível carregar os lançamentos de educação", error);
+  return (data as EduLancamentoRow[]).map(rowToEduLancamento);
+}
+
+export async function criarEduMes(nome: string, ano: number, ordem: number): Promise<EduMes> {
+  const { data, error } = await supabase.from("edu_meses").insert({ nome, ano, ordem }).select().single();
+  if (error) falhar("Não foi possível adicionar o mês", error);
+  return rowToEduMes(data as EduMesRow);
+}
+
+export async function excluirEduMes(id: string): Promise<void> {
+  const { error } = await supabase.from("edu_meses").delete().eq("id", id);
+  if (error) falhar("Não foi possível remover o mês", error);
+}
+
+/** Upsert parcial em edu_lancamentos: só as chaves presentes no payload são gravadas/sobrescritas. */
+export async function salvarEduCelula(payload: {
+  unidadeId: string;
+  mesId: string;
+  investimento?: number | null;
+  leads?: number | null;
+  notaInvestimento?: string | null;
+  notaLeads?: string | null;
+}): Promise<EduLancamento> {
+  const row: Record<string, unknown> = { unidade_id: payload.unidadeId, mes_id: payload.mesId };
+  if ("investimento" in payload) row.investimento = payload.investimento;
+  if ("leads" in payload) row.leads = payload.leads;
+  if ("notaInvestimento" in payload) row.nota_investimento = payload.notaInvestimento;
+  if ("notaLeads" in payload) row.nota_leads = payload.notaLeads;
+  const { data, error } = await supabase
+    .from("edu_lancamentos")
+    .upsert(row, { onConflict: "unidade_id,mes_id" })
+    .select()
+    .single();
+  if (error) falhar("Não foi possível salvar", error);
+  return rowToEduLancamento(data as EduLancamentoRow);
 }
