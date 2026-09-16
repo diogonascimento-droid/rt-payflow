@@ -87,27 +87,21 @@ export default function InvestimentoEducacaoPage() {
     [meses, temporadaSelecionada]
   );
 
-  // Filtro de período independente, só pros cards de total do topo — não mexe
-  // na temporada nem na tabela por associação.
-  const [kpiMesInicioId, setKpiMesInicioId] = useState<string | null>(null);
-  const [kpiMesFimId, setKpiMesFimId] = useState<string | null>(null);
+  // Filtro de mês único, só pros cards de total do topo — não mexe na
+  // temporada nem na tabela por associação.
+  const [kpiMesId, setKpiMesId] = useState<string | null>(null);
+  const [seletorMesAberto, setSeletorMesAberto] = useState(false);
 
   useEffect(() => {
     if (meses.length === 0) return;
-    if (kpiMesInicioId === null && kpiMesFimId === null) {
-      setKpiMesInicioId(meses[0].id);
-      setKpiMesFimId(meses[meses.length - 1].id);
+    if (kpiMesId === null) {
+      setKpiMesId(meses[meses.length - 1].id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meses]);
 
-  const mesesDoFiltroKpi = useMemo(() => {
-    const idxInicio = meses.findIndex((m) => m.id === kpiMesInicioId);
-    const idxFim = meses.findIndex((m) => m.id === kpiMesFimId);
-    if (idxInicio === -1 || idxFim === -1) return meses;
-    const [lo, hi] = idxInicio <= idxFim ? [idxInicio, idxFim] : [idxFim, idxInicio];
-    return meses.slice(lo, hi + 1);
-  }, [meses, kpiMesInicioId, kpiMesFimId]);
+  const mesDoFiltroKpi = meses.find((m) => m.id === kpiMesId) || null;
+  const mesesDoFiltroKpi = useMemo(() => (mesDoFiltroKpi ? [mesDoFiltroKpi] : []), [mesDoFiltroKpi]);
 
   const lookup = useMemo(() => {
     const mapa = new Map<string, EduLancamento>();
@@ -264,30 +258,40 @@ export default function InvestimentoEducacaoPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[12px] text-text-faint-2">Período dos totais abaixo:</span>
-            <select
-              value={kpiMesInicioId ?? ""}
-              onChange={(e) => setKpiMesInicioId(e.target.value)}
-              className="font-mono text-[12px] py-1 px-2 border border-input-border rounded-sm bg-surface"
-            >
-              {meses.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {MES_ABREV[m.nome]} {m.ano}
-                </option>
-              ))}
-            </select>
-            <span className="text-[12px] text-text-faint-2">até</span>
-            <select
-              value={kpiMesFimId ?? ""}
-              onChange={(e) => setKpiMesFimId(e.target.value)}
-              className="font-mono text-[12px] py-1 px-2 border border-input-border rounded-sm bg-surface"
-            >
-              {meses.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {MES_ABREV[m.nome]} {m.ano}
-                </option>
-              ))}
-            </select>
+            <span className="text-[12px] text-text-faint-2">Mês dos totais abaixo:</span>
+            <div className="relative">
+              <button
+                onClick={() => setSeletorMesAberto((v) => !v)}
+                className="flex items-center gap-1.5 font-mono text-[12px] py-1 px-2.5 border border-input-border rounded-sm bg-surface cursor-pointer"
+              >
+                {mesDoFiltroKpi ? `${MES_ABREV[mesDoFiltroKpi.nome]} ${mesDoFiltroKpi.ano}` : "—"}
+                <span className="text-text-faint-2 text-[10px]">▾</span>
+              </button>
+              {seletorMesAberto && (
+                <>
+                  <div onClick={() => setSeletorMesAberto(false)} className="fixed inset-0 z-[39]" />
+                  <div className="absolute top-9 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.22)] p-2.5 flex flex-wrap gap-1.5 w-[220px]">
+                    {meses.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          setKpiMesId(m.id);
+                          setSeletorMesAberto(false);
+                        }}
+                        className={
+                          "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
+                          (m.id === kpiMesId
+                            ? "bg-ink text-lima-ui border-ink"
+                            : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                        }
+                      >
+                        {MES_ABREV[m.nome]} {m.ano}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2.5">
