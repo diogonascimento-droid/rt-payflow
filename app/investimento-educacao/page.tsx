@@ -5,10 +5,11 @@ import { NavBar } from "@/components/NavBar";
 import { HeroStat, KpiTile } from "@/components/tiles";
 import { CurrencyInput } from "@/components/CurrencyInput";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/lib/supabase/useAuth";
 import { useEduUnidades, useEduMeses, useEduLancamentos } from "@/lib/supabase/hooks";
-import { criarEduMes, salvarEduCelula } from "@/lib/supabase/queries";
-import { EduLancamento } from "@/lib/types";
+import { criarEduMes, excluirEduMes, salvarEduCelula } from "@/lib/supabase/queries";
+import { EduLancamento, EduMes } from "@/lib/types";
 
 const MESES_SEQ = [
   "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
@@ -245,6 +246,31 @@ export default function InvestimentoEducacaoPage() {
     }
   }
 
+  /** Um mês só pode ser excluído por aqui se estiver 100% vazio em todas as
+   * associações — nunca apaga dado de verdade (motivo: já apagamos dados
+   * de verdade uma vez com um botão parecido, não repete). */
+  function mesEstaVazio(mesId: string): boolean {
+    return !eduLancamentos.some(
+      (l) => l.mesId === mesId && (l.investimento != null || l.leads != null || !!l.notaInvestimento || !!l.notaLeads)
+    );
+  }
+
+  const [mesParaExcluir, setMesParaExcluir] = useState<EduMes | null>(null);
+
+  async function confirmarExclusaoMes() {
+    if (!mesParaExcluir) return;
+    const mes = mesParaExcluir;
+    try {
+      await excluirEduMes(mes.id);
+      setMeses((ms) => ms.filter((m) => m.id !== mes.id));
+      setEduLancamentos((ls) => ls.filter((l) => l.mesId !== mes.id));
+    } catch (e) {
+      setErroAcao((e as Error).message);
+    } finally {
+      setMesParaExcluir(null);
+    }
+  }
+
   const idsMesesDoFiltroKpi = useMemo(() => new Set(mesesDoFiltroKpi.map((m) => m.id)), [mesesDoFiltroKpi]);
   const idsUnidadesDoFiltroKpi = useMemo(() => new Set(unidadesDoFiltroKpi.map((u) => u.id)), [unidadesDoFiltroKpi]);
 
@@ -467,6 +493,35 @@ export default function InvestimentoEducacaoPage() {
               )}
             </div>
 
+            {isEditor && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-text-faint-2 whitespace-nowrap">Meses cadastrados</span>
+                {meses.map((m) => {
+                  const vazio = mesEstaVazio(m.id);
+                  return (
+                    <span
+                      key={m.id}
+                      className={
+                        "flex items-center gap-1 font-mono text-[11px] rounded-pill py-1 pl-2.5 pr-1 border " +
+                        (vazio ? "text-text-muted bg-surface border-border" : "text-text-faint-2 bg-transparent border-transparent")
+                      }
+                    >
+                      {MES_ABREV[m.nome]} {m.ano}
+                      {vazio && (
+                        <button
+                          onClick={() => setMesParaExcluir(m)}
+                          title="Excluir mês vazio"
+                          className="bg-transparent border-none text-text-faint-2 cursor-pointer text-[12px] leading-none p-0.5 hover:text-danger"
+                        >
+                          🗑
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex flex-col gap-3.5">
               {unidades.map((u) => {
                 const colunas = mesesDaTemporada.map((m) => lookup.get(`${u.id}|${m.id}`));
@@ -652,6 +707,16 @@ export default function InvestimentoEducacaoPage() {
           </div>
         </div>
         </>
+      )}
+
+      {mesParaExcluir && (
+        <ConfirmDialog
+          title={`Excluir ${MES_ABREV[mesParaExcluir.nome]} ${mesParaExcluir.ano}?`}
+          text="Esse mês está vazio — nenhuma associação tem investimento, leads ou comentário registrado nele. A coluna será removida de todas as tabelas."
+          confirmLabel="Excluir mês"
+          onConfirm={confirmarExclusaoMes}
+          onCancel={() => setMesParaExcluir(null)}
+        />
       )}
     </div>
   );
