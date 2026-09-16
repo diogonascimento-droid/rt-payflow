@@ -5,6 +5,16 @@ const DOMINIO_PERMITIDO = "@rtpublicity.com.br";
 const ROTAS_PUBLICAS = ["/login", "/auth/callback"];
 
 export async function updateSession(request: NextRequest) {
+  // /auth/callback está trocando o código do Google pela sessão nesse exato
+  // instante — se o middleware também mexer nos cookies dessa mesma
+  // requisição (criando um segundo cliente Supabase em paralelo), dá corrida
+  // entre os dois e o login falha na primeira tentativa (só "resolve" na
+  // segunda, quando já tem cookie de sobra da tentativa anterior). Deixa essa
+  // rota inteiramente para o route handler.
+  if (request.nextUrl.pathname.startsWith("/auth/callback")) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
