@@ -44,6 +44,8 @@ function rotuloTemporada(inicio: number): string {
   return `${String(inicio).slice(-2)}/${String(inicio + 1).slice(-2)}`;
 }
 
+const TODOS_OS_MESES = "TODOS";
+
 export default function InvestimentoEducacaoPage() {
   const { isEditor } = useAuth();
   const { unidades, carregando: carregandoU, erro: erroU, recarregar: recarregarU } = useEduUnidades();
@@ -100,8 +102,11 @@ export default function InvestimentoEducacaoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meses]);
 
-  const mesDoFiltroKpi = meses.find((m) => m.id === kpiMesId) || null;
-  const mesesDoFiltroKpi = useMemo(() => (mesDoFiltroKpi ? [mesDoFiltroKpi] : []), [mesDoFiltroKpi]);
+  const mesDoFiltroKpi = kpiMesId === TODOS_OS_MESES ? null : meses.find((m) => m.id === kpiMesId) || null;
+  const mesesDoFiltroKpi = useMemo(() => {
+    if (kpiMesId === TODOS_OS_MESES) return meses;
+    return mesDoFiltroKpi ? [mesDoFiltroKpi] : [];
+  }, [meses, kpiMesId, mesDoFiltroKpi]);
 
   const lookup = useMemo(() => {
     const mapa = new Map<string, EduLancamento>();
@@ -264,13 +269,32 @@ export default function InvestimentoEducacaoPage() {
                 onClick={() => setSeletorMesAberto((v) => !v)}
                 className="flex items-center gap-1.5 font-mono text-[12px] py-1 px-2.5 border border-input-border rounded-sm bg-surface cursor-pointer"
               >
-                {mesDoFiltroKpi ? `${MES_ABREV[mesDoFiltroKpi.nome]} ${mesDoFiltroKpi.ano}` : "—"}
+                {kpiMesId === TODOS_OS_MESES
+                  ? "Todos os meses"
+                  : mesDoFiltroKpi
+                  ? `${MES_ABREV[mesDoFiltroKpi.nome]} ${mesDoFiltroKpi.ano}`
+                  : "—"}
                 <span className="text-text-faint-2 text-[10px]">▾</span>
               </button>
               {seletorMesAberto && (
                 <>
                   <div onClick={() => setSeletorMesAberto(false)} className="fixed inset-0 z-[39]" />
                   <div className="absolute top-9 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.22)] p-2.5 flex flex-wrap gap-1.5 w-[220px]">
+                    <button
+                      onClick={() => {
+                        setKpiMesId(TODOS_OS_MESES);
+                        setSeletorMesAberto(false);
+                      }}
+                      className={
+                        "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border w-full " +
+                        (kpiMesId === TODOS_OS_MESES
+                          ? "bg-ink text-lima-ui border-ink"
+                          : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                      }
+                    >
+                      Todos os meses
+                    </button>
+                    <div className="w-full border-t border-divider my-0.5" />
                     {meses.map((m) => (
                       <button
                         key={m.id}
