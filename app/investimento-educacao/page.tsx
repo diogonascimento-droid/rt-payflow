@@ -45,7 +45,6 @@ function rotuloTemporada(inicio: number): string {
   return `${String(inicio).slice(-2)}/${String(inicio + 1).slice(-2)}`;
 }
 
-const TODOS_OS_MESES = "TODOS";
 const TODAS_ASSOCIACOES = "TODAS";
 
 export default function InvestimentoEducacaoPage() {
@@ -91,24 +90,47 @@ export default function InvestimentoEducacaoPage() {
     [meses, temporadaSelecionada]
   );
 
-  // Filtro de mês único, só pros cards de total do topo — não mexe na
-  // temporada nem na tabela por associação.
-  const [kpiMesId, setKpiMesId] = useState<string | null>(null);
+  // Filtro de mês (um, vários ou todos), só pros cards de total do topo —
+  // não mexe na temporada nem na tabela por associação.
+  const [kpiMesesSelecionados, setKpiMesesSelecionados] = useState<Set<string>>(new Set());
+  const [kpiTodosOsMeses, setKpiTodosOsMeses] = useState(false);
   const [seletorMesAberto, setSeletorMesAberto] = useState(false);
 
   useEffect(() => {
     if (meses.length === 0) return;
-    if (kpiMesId === null) {
-      setKpiMesId(meses[meses.length - 1].id);
+    if (kpiMesesSelecionados.size === 0 && !kpiTodosOsMeses) {
+      setKpiMesesSelecionados(new Set([meses[meses.length - 1].id]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meses]);
 
-  const mesDoFiltroKpi = kpiMesId === TODOS_OS_MESES ? null : meses.find((m) => m.id === kpiMesId) || null;
+  function alternarMesKpi(mesId: string) {
+    setKpiTodosOsMeses(false);
+    setKpiMesesSelecionados((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(mesId)) {
+        if (novo.size > 1) novo.delete(mesId);
+      } else {
+        novo.add(mesId);
+      }
+      return novo;
+    });
+  }
+
   const mesesDoFiltroKpi = useMemo(() => {
-    if (kpiMesId === TODOS_OS_MESES) return meses;
-    return mesDoFiltroKpi ? [mesDoFiltroKpi] : [];
-  }, [meses, kpiMesId, mesDoFiltroKpi]);
+    if (kpiTodosOsMeses) return meses;
+    return meses.filter((m) => kpiMesesSelecionados.has(m.id));
+  }, [meses, kpiTodosOsMeses, kpiMesesSelecionados]);
+
+  const rotuloFiltroMes = kpiTodosOsMeses
+    ? "Todos os meses"
+    : mesesDoFiltroKpi.length === 0
+    ? "—"
+    : mesesDoFiltroKpi.length === 1
+    ? `${MES_ABREV[mesesDoFiltroKpi[0].nome]} ${mesesDoFiltroKpi[0].ano}`
+    : mesesDoFiltroKpi.length <= 3
+    ? mesesDoFiltroKpi.map((m) => MES_ABREV[m.nome]).join("+") + ` ${mesesDoFiltroKpi[mesesDoFiltroKpi.length - 1].ano}`
+    : `${mesesDoFiltroKpi.length} meses`;
 
   // Filtro de associação, também só pros cards de total do topo.
   const [kpiUnidadeId, setKpiUnidadeId] = useState<string>(TODAS_ASSOCIACOES);
@@ -295,28 +317,21 @@ export default function InvestimentoEducacaoPage() {
                   }}
                   className={
                     "flex items-center gap-1.5 font-mono text-[12px] py-1.5 px-3 rounded-pill border cursor-pointer whitespace-nowrap " +
-                    (kpiMesId !== TODOS_OS_MESES ? "bg-lima-ui text-ink border-lima-ui" : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
+                    (!kpiTodosOsMeses ? "bg-lima-ui text-ink border-lima-ui" : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
                   }
                 >
-                  {kpiMesId === TODOS_OS_MESES
-                    ? "Todos os meses"
-                    : mesDoFiltroKpi
-                    ? `${MES_ABREV[mesDoFiltroKpi.nome]} ${mesDoFiltroKpi.ano}`
-                    : "—"}
+                  {rotuloFiltroMes}
                   <span className="text-[10px]">▾</span>
                 </button>
                 {seletorMesAberto && (
                   <>
                     <div onClick={() => setSeletorMesAberto(false)} className="fixed inset-0 z-[39]" />
-                    <div className="absolute top-10 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.35)] p-2.5 flex flex-wrap gap-1.5 w-[220px]">
+                    <div className="absolute top-10 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.35)] p-2.5 flex flex-col gap-1.5 w-[240px]">
                       <button
-                        onClick={() => {
-                          setKpiMesId(TODOS_OS_MESES);
-                          setSeletorMesAberto(false);
-                        }}
+                        onClick={() => setKpiTodosOsMeses(true)}
                         className={
                           "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border w-full " +
-                          (kpiMesId === TODOS_OS_MESES
+                          (kpiTodosOsMeses
                             ? "bg-ink text-lima-ui border-ink"
                             : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
                         }
@@ -324,23 +339,27 @@ export default function InvestimentoEducacaoPage() {
                         Todos os meses
                       </button>
                       <div className="w-full border-t border-divider my-0.5" />
-                      {meses.map((m) => (
-                        <button
-                          key={m.id}
-                          onClick={() => {
-                            setKpiMesId(m.id);
-                            setSeletorMesAberto(false);
-                          }}
-                          className={
-                            "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
-                            (m.id === kpiMesId
-                              ? "bg-ink text-lima-ui border-ink"
-                              : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
-                          }
-                        >
-                          {MES_ABREV[m.nome]} {m.ano}
-                        </button>
-                      ))}
+                      <span className="text-[10.5px] text-text-faint-2">Ou marque um ou mais meses:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {meses.map((m) => {
+                          const marcado = !kpiTodosOsMeses && kpiMesesSelecionados.has(m.id);
+                          return (
+                            <button
+                              key={m.id}
+                              onClick={() => alternarMesKpi(m.id)}
+                              className={
+                                "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
+                                (marcado
+                                  ? "bg-ink text-lima-ui border-ink"
+                                  : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                              }
+                            >
+                              {marcado ? "✓ " : ""}
+                              {MES_ABREV[m.nome]} {m.ano}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </>
                 )}
