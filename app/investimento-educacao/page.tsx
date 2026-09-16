@@ -167,11 +167,17 @@ export default function InvestimentoEducacaoPage() {
   eduLancamentos.forEach((l) => {
     totalInvest += l.investimento || 0;
     totalLeads += l.leads || 0;
-    if (l.notaInvestimento) {
-      const m = l.notaInvestimento.match(/Meta R\$\s*([\d.,]+)/);
-      const g = l.notaInvestimento.match(/Google R\$\s*([\d.,]+)/);
-      if (m) gastoMeta += parseNumBR(m[1]);
-      if (g) gastoGoogle += parseNumBR(g[1]);
+    if (l.investimento) {
+      const m = l.notaInvestimento?.match(/Meta R\$\s*([\d.,]+)/);
+      const g = l.notaInvestimento?.match(/Google R\$\s*([\d.,]+)/);
+      if (m || g) {
+        // nota especifica a quebra — usa os valores dela.
+        gastoMeta += m ? parseNumBR(m[1]) : 0;
+        gastoGoogle += g ? parseNumBR(g[1]) : 0;
+      } else {
+        // sem nota (ou nota sem quebra Meta/Google reconhecível) = 100% Meta por padrão.
+        gastoMeta += l.investimento;
+      }
     }
   });
 
@@ -307,16 +313,16 @@ export default function InvestimentoEducacaoPage() {
                       <span className="font-mono text-[11.5px] text-text-faint">{BRL(somaInvest)}</span>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-[12.5px]">
+                      <table className="border-collapse text-[12.5px]">
                         <thead>
                           <tr className="font-mono text-[9.5px] tracking-[0.06em] uppercase text-text-faint-2">
-                            <th className="text-left font-normal py-2 pt-2 pb-1.5 px-2.5 w-[96px] sticky left-0 bg-surface z-[1]" />
+                            <th className="text-left font-normal py-2 pt-2 pb-1.5 px-2.5 min-w-[92px] sticky left-0 bg-surface z-[1] whitespace-nowrap" />
                             {mesesDoAno.map((m) => (
-                              <th key={m.id} className="text-right font-normal py-2 pt-2 pb-1.5 px-2 min-w-[108px]">
+                              <th key={m.id} className="text-right font-normal py-2 pt-2 pb-1.5 px-2 whitespace-nowrap">
                                 {MES_ABREV[m.nome]}
                               </th>
                             ))}
-                            <th className="text-right font-normal py-2 pt-2 pb-1.5 pl-2 pr-2.5 border-l border-divider min-w-[96px] sticky right-0 bg-surface z-[1]">
+                            <th className="text-right font-normal py-2 pt-2 pb-1.5 pl-3 pr-2.5 border-l border-divider whitespace-nowrap sticky right-0 bg-surface z-[1]">
                               Total
                             </th>
                           </tr>
@@ -328,19 +334,18 @@ export default function InvestimentoEducacaoPage() {
                               const mes = mesesDoAno[i];
                               const temNota = !!l?.notaInvestimento;
                               return (
-                                <td key={mes.id} className="py-1 px-1.5 min-w-[108px]">
-                                  <div className="flex items-center gap-1">
+                                <td key={mes.id} className="py-1 px-1">
+                                  <div className="flex items-center justify-end gap-1">
                                     {isEditor ? (
                                       <CurrencyInput
                                         centavos={Math.round((l?.investimento || 0) * 100)}
                                         onChange={(c) => setInvestimento(u.id, mes.id, c === 0 ? null : c / 100)}
-                                        mostrarPrefixo={false}
                                         placeholder="—"
-                                        className="flex-1 min-w-0 text-right font-mono text-[12.5px] py-1.5 px-1.5 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
+                                        className="w-[13ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
                                       />
                                     ) : (
-                                      <span className="flex-1 min-w-0 text-right font-mono text-[12.5px] py-1.5 px-1.5 text-text-body">
-                                        {l?.investimento ? l.investimento.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                                      <span className="w-[13ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 text-text-body whitespace-nowrap">
+                                        {l?.investimento ? BRL(l.investimento) : "—"}
                                       </span>
                                     )}
                                     <button
@@ -356,7 +361,7 @@ export default function InvestimentoEducacaoPage() {
                                 </td>
                               );
                             })}
-                            <td className="py-1 pl-2 pr-2.5 text-right font-mono font-semibold border-l border-divider min-w-[96px] sticky right-0 bg-surface z-[1]">
+                            <td className="py-1 pl-2 pr-2.5 text-right font-mono font-semibold border-l border-divider whitespace-nowrap sticky right-0 bg-surface z-[1]">
                               {BRL(somaInvest)}
                             </td>
                           </tr>
@@ -366,8 +371,8 @@ export default function InvestimentoEducacaoPage() {
                               const mes = mesesDoAno[i];
                               const temNota = !!l?.notaLeads;
                               return (
-                                <td key={mes.id} className="py-1 px-1.5 min-w-[108px]">
-                                  <div className="flex items-center gap-1">
+                                <td key={mes.id} className="py-1 px-1">
+                                  <div className="flex items-center justify-end gap-1">
                                     {isEditor ? (
                                       <input
                                         value={l?.leads ?? ""}
@@ -377,10 +382,10 @@ export default function InvestimentoEducacaoPage() {
                                         }}
                                         placeholder="—"
                                         inputMode="numeric"
-                                        className="flex-1 min-w-0 text-right font-mono text-[12.5px] py-1.5 px-1.5 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
+                                        className="w-[6ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
                                       />
                                     ) : (
-                                      <span className="flex-1 min-w-0 text-right font-mono text-[12.5px] py-1.5 px-1.5 text-text-body">
+                                      <span className="w-[6ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 text-text-body whitespace-nowrap">
                                         {l?.leads != null ? NUM(l.leads) : "—"}
                                       </span>
                                     )}
@@ -397,7 +402,7 @@ export default function InvestimentoEducacaoPage() {
                                 </td>
                               );
                             })}
-                            <td className="py-1 pl-2 pr-2.5 text-right font-mono font-semibold border-l border-divider min-w-[96px] sticky right-0 bg-surface z-[1]">
+                            <td className="py-1 pl-2 pr-2.5 text-right font-mono font-semibold border-l border-divider whitespace-nowrap sticky right-0 bg-surface z-[1]">
                               {NUM(somaLeads)}
                             </td>
                           </tr>
@@ -407,12 +412,12 @@ export default function InvestimentoEducacaoPage() {
                               const mes = mesesDoAno[i];
                               const custo = l?.investimento && l?.leads ? l.investimento / l.leads : null;
                               return (
-                                <td key={mes.id} className="py-1 px-2 pb-2 text-right font-mono text-[12px] text-text-faint-2 min-w-[108px]">
+                                <td key={mes.id} className="py-1 px-2 pb-2 text-right font-mono text-[12px] text-text-faint-2 whitespace-nowrap">
                                   {custo ? BRL(custo) : "—"}
                                 </td>
                               );
                             })}
-                            <td className="py-1 pl-2 pr-2.5 pb-2 text-right font-mono text-[12px] text-text-faint font-semibold border-l border-divider min-w-[96px] sticky right-0 bg-surface z-[1]">
+                            <td className="py-1 pl-2 pr-2.5 pb-2 text-right font-mono text-[12px] text-text-faint font-semibold border-l border-divider whitespace-nowrap sticky right-0 bg-surface z-[1]">
                               {somaLeads ? BRL(somaInvest / somaLeads) : "—"}
                             </td>
                           </tr>
