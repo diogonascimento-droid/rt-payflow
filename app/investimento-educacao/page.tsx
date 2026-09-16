@@ -573,7 +573,7 @@ export default function InvestimentoEducacaoPage() {
                                         centavos={Math.round((l?.investimento || 0) * 100)}
                                         onChange={(c) => setInvestimento(u.id, mes.id, c === 0 ? null : c / 100)}
                                         placeholder="—"
-                                        className="w-[13ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
+                                        className="appearance-none w-[13ch] shrink-0 text-right font-mono text-[12.5px] leading-normal py-1.5 px-1 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
                                       />
                                     ) : (
                                       <span className="w-[13ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 text-text-body whitespace-nowrap">
@@ -614,7 +614,7 @@ export default function InvestimentoEducacaoPage() {
                                         }}
                                         placeholder="—"
                                         inputMode="numeric"
-                                        className="w-[6ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
+                                        className="appearance-none w-[6ch] shrink-0 text-right font-mono text-[12.5px] leading-normal py-1.5 px-1 border border-transparent rounded-sm bg-transparent text-text-body outline-none hover:bg-workspace hover:border-input-border focus:bg-surface focus:border-ink"
                                       />
                                     ) : (
                                       <span className="w-[6ch] shrink-0 text-right font-mono text-[12.5px] py-1.5 px-1 text-text-body whitespace-nowrap">
