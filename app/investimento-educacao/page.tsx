@@ -45,8 +45,6 @@ function rotuloTemporada(inicio: number): string {
   return `${String(inicio).slice(-2)}/${String(inicio + 1).slice(-2)}`;
 }
 
-const TODAS_ASSOCIACOES = "TODAS";
-
 export default function InvestimentoEducacaoPage() {
   const { isEditor } = useAuth();
   const { unidades, carregando: carregandoU, erro: erroU, recarregar: recarregarU } = useEduUnidades();
@@ -132,10 +130,39 @@ export default function InvestimentoEducacaoPage() {
     ? mesesDoFiltroKpi.map((m) => MES_ABREV[m.nome]).join("+") + ` ${mesesDoFiltroKpi[mesesDoFiltroKpi.length - 1].ano}`
     : `${mesesDoFiltroKpi.length} meses`;
 
-  // Filtro de associação, também só pros cards de total do topo.
-  const [kpiUnidadeId, setKpiUnidadeId] = useState<string>(TODAS_ASSOCIACOES);
+  // Filtro de associação (uma, várias ou todas), também só pros cards de
+  // total do topo.
+  const [kpiUnidadesSelecionadas, setKpiUnidadesSelecionadas] = useState<Set<string>>(new Set());
+  const [kpiTodasAssociacoes, setKpiTodasAssociacoes] = useState(true);
   const [seletorUnidadeAberto, setSeletorUnidadeAberto] = useState(false);
-  const unidadeDoFiltroKpi = kpiUnidadeId === TODAS_ASSOCIACOES ? null : unidades.find((u) => u.id === kpiUnidadeId) || null;
+
+  function alternarUnidadeKpi(unidadeId: string) {
+    setKpiTodasAssociacoes(false);
+    setKpiUnidadesSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(unidadeId)) {
+        if (novo.size > 1) novo.delete(unidadeId);
+      } else {
+        novo.add(unidadeId);
+      }
+      return novo;
+    });
+  }
+
+  const unidadesDoFiltroKpi = useMemo(() => {
+    if (kpiTodasAssociacoes) return unidades;
+    return unidades.filter((u) => kpiUnidadesSelecionadas.has(u.id));
+  }, [unidades, kpiTodasAssociacoes, kpiUnidadesSelecionadas]);
+
+  const rotuloFiltroUnidade = kpiTodasAssociacoes
+    ? "Todas as associações"
+    : unidadesDoFiltroKpi.length === 0
+    ? "—"
+    : unidadesDoFiltroKpi.length === 1
+    ? unidadesDoFiltroKpi[0].nome
+    : unidadesDoFiltroKpi.length <= 2
+    ? unidadesDoFiltroKpi.map((u) => u.nome).join(" + ")
+    : `${unidadesDoFiltroKpi.length} associações`;
 
   const lookup = useMemo(() => {
     const mapa = new Map<string, EduLancamento>();
@@ -219,6 +246,7 @@ export default function InvestimentoEducacaoPage() {
   }
 
   const idsMesesDoFiltroKpi = useMemo(() => new Set(mesesDoFiltroKpi.map((m) => m.id)), [mesesDoFiltroKpi]);
+  const idsUnidadesDoFiltroKpi = useMemo(() => new Set(unidadesDoFiltroKpi.map((u) => u.id)), [unidadesDoFiltroKpi]);
 
   let totalInvest = 0;
   let totalLeads = 0;
@@ -226,7 +254,7 @@ export default function InvestimentoEducacaoPage() {
   let gastoGoogle = 0;
   eduLancamentos.forEach((l) => {
     if (!idsMesesDoFiltroKpi.has(l.mesId)) return;
-    if (kpiUnidadeId !== TODAS_ASSOCIACOES && l.unidadeId !== kpiUnidadeId) return;
+    if (!idsUnidadesDoFiltroKpi.has(l.unidadeId)) return;
     totalInvest += l.investimento || 0;
     totalLeads += l.leads || 0;
     if (l.investimento) {
@@ -373,24 +401,21 @@ export default function InvestimentoEducacaoPage() {
                   }}
                   className={
                     "flex items-center gap-1.5 font-mono text-[12px] py-1.5 px-3 rounded-pill border cursor-pointer whitespace-nowrap " +
-                    (kpiUnidadeId !== TODAS_ASSOCIACOES ? "bg-lima-ui text-ink border-lima-ui" : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
+                    (!kpiTodasAssociacoes ? "bg-lima-ui text-ink border-lima-ui" : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
                   }
                 >
-                  {unidadeDoFiltroKpi ? unidadeDoFiltroKpi.nome : "Todas as associações"}
+                  {rotuloFiltroUnidade}
                   <span className="text-[10px]">▾</span>
                 </button>
                 {seletorUnidadeAberto && (
                   <>
                     <div onClick={() => setSeletorUnidadeAberto(false)} className="fixed inset-0 z-[39]" />
-                    <div className="absolute top-10 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.35)] p-2.5 flex flex-wrap gap-1.5 w-[280px]">
+                    <div className="absolute top-10 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.35)] p-2.5 flex flex-col gap-1.5 w-[280px]">
                       <button
-                        onClick={() => {
-                          setKpiUnidadeId(TODAS_ASSOCIACOES);
-                          setSeletorUnidadeAberto(false);
-                        }}
+                        onClick={() => setKpiTodasAssociacoes(true)}
                         className={
                           "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border w-full " +
-                          (kpiUnidadeId === TODAS_ASSOCIACOES
+                          (kpiTodasAssociacoes
                             ? "bg-ink text-lima-ui border-ink"
                             : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
                         }
@@ -398,23 +423,27 @@ export default function InvestimentoEducacaoPage() {
                         Todas as associações
                       </button>
                       <div className="w-full border-t border-divider my-0.5" />
-                      {unidades.map((u) => (
-                        <button
-                          key={u.id}
-                          onClick={() => {
-                            setKpiUnidadeId(u.id);
-                            setSeletorUnidadeAberto(false);
-                          }}
-                          className={
-                            "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
-                            (u.id === kpiUnidadeId
-                              ? "bg-ink text-lima-ui border-ink"
-                              : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
-                          }
-                        >
-                          {u.nome}
-                        </button>
-                      ))}
+                      <span className="text-[10.5px] text-text-faint-2">Ou marque uma ou mais associações:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {unidades.map((u) => {
+                          const marcado = !kpiTodasAssociacoes && kpiUnidadesSelecionadas.has(u.id);
+                          return (
+                            <button
+                              key={u.id}
+                              onClick={() => alternarUnidadeKpi(u.id)}
+                              className={
+                                "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
+                                (marcado
+                                  ? "bg-ink text-lima-ui border-ink"
+                                  : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                              }
+                            >
+                              {marcado ? "✓ " : ""}
+                              {u.nome}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </>
                 )}
