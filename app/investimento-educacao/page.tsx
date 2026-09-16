@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { NavBar } from "@/components/NavBar";
+import { HeroStat, KpiTile } from "@/components/tiles";
 import { CurrencyInput } from "@/components/CurrencyInput";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { useAuth } from "@/lib/supabase/useAuth";
@@ -45,6 +46,7 @@ function rotuloTemporada(inicio: number): string {
 }
 
 const TODOS_OS_MESES = "TODOS";
+const TODAS_ASSOCIACOES = "TODAS";
 
 export default function InvestimentoEducacaoPage() {
   const { isEditor } = useAuth();
@@ -107,6 +109,11 @@ export default function InvestimentoEducacaoPage() {
     if (kpiMesId === TODOS_OS_MESES) return meses;
     return mesDoFiltroKpi ? [mesDoFiltroKpi] : [];
   }, [meses, kpiMesId, mesDoFiltroKpi]);
+
+  // Filtro de associação, também só pros cards de total do topo.
+  const [kpiUnidadeId, setKpiUnidadeId] = useState<string>(TODAS_ASSOCIACOES);
+  const [seletorUnidadeAberto, setSeletorUnidadeAberto] = useState(false);
+  const unidadeDoFiltroKpi = kpiUnidadeId === TODAS_ASSOCIACOES ? null : unidades.find((u) => u.id === kpiUnidadeId) || null;
 
   const lookup = useMemo(() => {
     const mapa = new Map<string, EduLancamento>();
@@ -197,6 +204,7 @@ export default function InvestimentoEducacaoPage() {
   let gastoGoogle = 0;
   eduLancamentos.forEach((l) => {
     if (!idsMesesDoFiltroKpi.has(l.mesId)) return;
+    if (kpiUnidadeId !== TODAS_ASSOCIACOES && l.unidadeId !== kpiUnidadeId) return;
     totalInvest += l.investimento || 0;
     totalLeads += l.leads || 0;
     if (l.investimento) {
@@ -236,114 +244,167 @@ export default function InvestimentoEducacaoPage() {
       ) : erro ? (
         <ErroState mensagem={erro} onRetry={recarregarTudo} />
       ) : (
-        <div className="px-7 pt-6 pb-[60px] max-w-[1440px] mx-auto w-full flex flex-col gap-5">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="font-heading text-[20px] font-bold m-0">Investimento em Educação</h1>
-              <p className="mt-1 mb-0 text-[13px] text-text-muted">UCB · lançamento manual por associação, mês a mês</p>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="font-mono text-[11px] text-text-faint-2">{periodoLabel}</span>
-              <div className="flex gap-1">
-                {temporadas.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTemporadaSelecionada(t)}
-                    title="Filtrar por temporada (junho a fevereiro)"
-                    className={
-                      "font-mono text-[11.5px] font-semibold rounded-pill py-1 px-3 cursor-pointer border " +
-                      (t === temporadaSelecionada ? "bg-ink text-lima-ui border-ink" : "bg-transparent text-text-faint-2 border-input-border")
-                    }
-                  >
-                    Temporada {rotuloTemporada(t)}
-                  </button>
-                ))}
+        <>
+        <div className="bg-ink text-text-on-dark">
+          <div className="max-w-[1440px] mx-auto w-full px-7 pt-5 pb-6 flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h1 className="font-heading text-[20px] font-bold m-0">Investimento em Educação</h1>
+                <p className="mt-1 mb-0 text-[13px] text-text-on-dark-muted">UCB · lançamento manual por associação, mês a mês</p>
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[12px] text-text-faint-2">Mês dos totais abaixo:</span>
-            <div className="relative">
-              <button
-                onClick={() => setSeletorMesAberto((v) => !v)}
-                className="flex items-center gap-1.5 font-mono text-[12px] py-1 px-2.5 border border-input-border rounded-sm bg-surface cursor-pointer"
-              >
-                {kpiMesId === TODOS_OS_MESES
-                  ? "Todos os meses"
-                  : mesDoFiltroKpi
-                  ? `${MES_ABREV[mesDoFiltroKpi.nome]} ${mesDoFiltroKpi.ano}`
-                  : "—"}
-                <span className="text-text-faint-2 text-[10px]">▾</span>
-              </button>
-              {seletorMesAberto && (
-                <>
-                  <div onClick={() => setSeletorMesAberto(false)} className="fixed inset-0 z-[39]" />
-                  <div className="absolute top-9 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.22)] p-2.5 flex flex-wrap gap-1.5 w-[220px]">
+              <div className="flex items-center gap-2.5">
+                <span className="font-mono text-[11px] text-text-on-dark-muted whitespace-nowrap">{periodoLabel}</span>
+                <div className="flex gap-1">
+                  {temporadas.map((t) => (
                     <button
-                      onClick={() => {
-                        setKpiMesId(TODOS_OS_MESES);
-                        setSeletorMesAberto(false);
-                      }}
+                      key={t}
+                      onClick={() => setTemporadaSelecionada(t)}
+                      title="Filtrar a tabela por temporada (junho a fevereiro)"
                       className={
-                        "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border w-full " +
-                        (kpiMesId === TODOS_OS_MESES
-                          ? "bg-ink text-lima-ui border-ink"
-                          : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                        "font-mono text-[11.5px] font-semibold rounded-pill py-1.5 px-3.5 cursor-pointer border whitespace-nowrap " +
+                        (t === temporadaSelecionada
+                          ? "bg-lima-ui text-ink border-lima-ui"
+                          : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
                       }
                     >
-                      Todos os meses
+                      Temporada {rotuloTemporada(t)}
                     </button>
-                    <div className="w-full border-t border-divider my-0.5" />
-                    {meses.map((m) => (
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-end gap-10 flex-wrap">
+              <HeroStat label="Total investido" value={BRL(totalInvest)} />
+              <KpiTile label="Total de leads" value={NUM(totalLeads)} />
+              <KpiTile label="Custo médio por lead" value={totalLeads ? BRL(totalInvest / totalLeads) : "—"} />
+              <KpiTile label="Gasto Meta" value={BRL(gastoMeta)} hint="apurado pelas notas" />
+              <KpiTile label="Gasto Google" value={BRL(gastoGoogle)} hint="apurado pelas notas" />
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap pt-4 border-t border-ink-3">
+              <span className="font-mono text-[10.5px] tracking-[0.08em] uppercase text-text-on-dark-muted whitespace-nowrap">
+                Filtrar totais acima
+              </span>
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setSeletorMesAberto((v) => !v);
+                    setSeletorUnidadeAberto(false);
+                  }}
+                  className={
+                    "flex items-center gap-1.5 font-mono text-[12px] py-1.5 px-3 rounded-pill border cursor-pointer whitespace-nowrap " +
+                    (kpiMesId !== TODOS_OS_MESES ? "bg-lima-ui text-ink border-lima-ui" : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
+                  }
+                >
+                  {kpiMesId === TODOS_OS_MESES
+                    ? "Todos os meses"
+                    : mesDoFiltroKpi
+                    ? `${MES_ABREV[mesDoFiltroKpi.nome]} ${mesDoFiltroKpi.ano}`
+                    : "—"}
+                  <span className="text-[10px]">▾</span>
+                </button>
+                {seletorMesAberto && (
+                  <>
+                    <div onClick={() => setSeletorMesAberto(false)} className="fixed inset-0 z-[39]" />
+                    <div className="absolute top-10 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.35)] p-2.5 flex flex-wrap gap-1.5 w-[220px]">
                       <button
-                        key={m.id}
                         onClick={() => {
-                          setKpiMesId(m.id);
+                          setKpiMesId(TODOS_OS_MESES);
                           setSeletorMesAberto(false);
                         }}
                         className={
-                          "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
-                          (m.id === kpiMesId
+                          "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border w-full " +
+                          (kpiMesId === TODOS_OS_MESES
                             ? "bg-ink text-lima-ui border-ink"
                             : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
                         }
                       >
-                        {MES_ABREV[m.nome]} {m.ano}
+                        Todos os meses
                       </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+                      <div className="w-full border-t border-divider my-0.5" />
+                      {meses.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            setKpiMesId(m.id);
+                            setSeletorMesAberto(false);
+                          }}
+                          className={
+                            "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
+                            (m.id === kpiMesId
+                              ? "bg-ink text-lima-ui border-ink"
+                              : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                          }
+                        >
+                          {MES_ABREV[m.nome]} {m.ano}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
 
-          <div className="flex flex-wrap gap-2.5">
-            <div className="bg-ink rounded-card py-3.5 px-4 flex flex-col gap-1 flex-1 min-w-[140px]">
-              <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-text-on-dark-muted whitespace-nowrap">Total investido</span>
-              <span className="font-mono font-semibold text-[18px] text-lima-ui tabular-nums whitespace-nowrap">{BRL(totalInvest)}</span>
-            </div>
-            <div className="bg-surface border border-border rounded-card py-3.5 px-4 flex flex-col gap-1 flex-1 min-w-[140px]">
-              <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-text-faint whitespace-nowrap">Total de leads</span>
-              <span className="font-mono font-semibold text-[18px] tabular-nums whitespace-nowrap">{NUM(totalLeads)}</span>
-            </div>
-            <div className="bg-surface border border-border rounded-card py-3.5 px-4 flex flex-col gap-1 flex-1 min-w-[140px]">
-              <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-text-faint whitespace-nowrap">Custo médio por lead</span>
-              <span className="font-mono font-semibold text-[18px] tabular-nums whitespace-nowrap">
-                {totalLeads ? BRL(totalInvest / totalLeads) : "—"}
-              </span>
-            </div>
-            <div className="bg-surface border border-border rounded-card py-3.5 px-4 flex flex-col gap-1 flex-1 min-w-[140px]">
-              <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-text-faint whitespace-nowrap">Gasto Meta</span>
-              <span className="font-mono font-semibold text-[18px] tabular-nums whitespace-nowrap">{BRL(gastoMeta)}</span>
-              <span className="text-[10.5px] text-text-faint-2 whitespace-nowrap">apurado pelas notas</span>
-            </div>
-            <div className="bg-surface border border-border rounded-card py-3.5 px-4 flex flex-col gap-1 flex-1 min-w-[140px]">
-              <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-text-faint whitespace-nowrap">Gasto Google</span>
-              <span className="font-mono font-semibold text-[18px] tabular-nums whitespace-nowrap">{BRL(gastoGoogle)}</span>
-              <span className="text-[10.5px] text-text-faint-2 whitespace-nowrap">apurado pelas notas</span>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setSeletorUnidadeAberto((v) => !v);
+                    setSeletorMesAberto(false);
+                  }}
+                  className={
+                    "flex items-center gap-1.5 font-mono text-[12px] py-1.5 px-3 rounded-pill border cursor-pointer whitespace-nowrap " +
+                    (kpiUnidadeId !== TODAS_ASSOCIACOES ? "bg-lima-ui text-ink border-lima-ui" : "bg-ink-2 text-text-on-dark-muted border-ink-3 hover:text-text-on-dark")
+                  }
+                >
+                  {unidadeDoFiltroKpi ? unidadeDoFiltroKpi.nome : "Todas as associações"}
+                  <span className="text-[10px]">▾</span>
+                </button>
+                {seletorUnidadeAberto && (
+                  <>
+                    <div onClick={() => setSeletorUnidadeAberto(false)} className="fixed inset-0 z-[39]" />
+                    <div className="absolute top-10 left-0 z-40 bg-surface border border-input-border rounded-card shadow-[0_16px_34px_rgba(16,18,16,0.35)] p-2.5 flex flex-wrap gap-1.5 w-[280px]">
+                      <button
+                        onClick={() => {
+                          setKpiUnidadeId(TODAS_ASSOCIACOES);
+                          setSeletorUnidadeAberto(false);
+                        }}
+                        className={
+                          "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border w-full " +
+                          (kpiUnidadeId === TODAS_ASSOCIACOES
+                            ? "bg-ink text-lima-ui border-ink"
+                            : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                        }
+                      >
+                        Todas as associações
+                      </button>
+                      <div className="w-full border-t border-divider my-0.5" />
+                      {unidades.map((u) => (
+                        <button
+                          key={u.id}
+                          onClick={() => {
+                            setKpiUnidadeId(u.id);
+                            setSeletorUnidadeAberto(false);
+                          }}
+                          className={
+                            "font-mono text-[12px] rounded-pill py-1 px-2.5 cursor-pointer border " +
+                            (u.id === kpiUnidadeId
+                              ? "bg-ink text-lima-ui border-ink"
+                              : "bg-transparent text-text-muted border-input-border hover:bg-workspace")
+                          }
+                        >
+                          {u.nome}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+        </div>
+
+        <div className="px-7 pt-6 pb-[60px] max-w-[1440px] mx-auto w-full flex flex-col gap-5">
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -542,6 +603,7 @@ export default function InvestimentoEducacaoPage() {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
