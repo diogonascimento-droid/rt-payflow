@@ -33,6 +33,17 @@ function stringParaChave(s: string): ChaveNota {
   return { unidadeId, tipo: tipo as NotaTipo, mesId };
 }
 
+/** Temporada = ciclo letivo de junho a fevereiro. Um mês de jan/fev pertence
+ * à temporada que começou no junho anterior; de junho em diante, à que
+ * começa nesse mesmo ano. */
+function inicioTemporada(mes: { nome: string; ano: number }): number {
+  const idx = MESES_SEQ.indexOf(mes.nome);
+  return idx >= 5 ? mes.ano : mes.ano - 1;
+}
+function rotuloTemporada(inicio: number): string {
+  return `${String(inicio).slice(-2)}/${String(inicio + 1).slice(-2)}`;
+}
+
 export default function InvestimentoEducacaoPage() {
   const { isEditor } = useAuth();
   const { unidades, carregando: carregandoU, erro: erroU, recarregar: recarregarU } = useEduUnidades();
@@ -53,22 +64,50 @@ export default function InvestimentoEducacaoPage() {
     recarregarL();
   };
 
-  const [anoSelecionado, setAnoSelecionado] = useState<number | null>(null);
+  const [temporadaSelecionada, setTemporadaSelecionada] = useState<number | null>(null);
   const [notaAberta, setNotaAberta] = useState<string | null>(null);
   const [notaEditTexto, setNotaEditTexto] = useState("");
   const [erroAcao, setErroAcao] = useState<string | null>(null);
-  const [mesesOcultos, setMesesOcultos] = useState<Set<string>>(new Set());
 
-  const anos = useMemo(() => Array.from(new Set(meses.map((m) => m.ano))), [meses]);
-  const mesesVisiveis = useMemo(() => meses.filter((m) => !mesesOcultos.has(m.id)), [meses, mesesOcultos]);
+  const temporadas = useMemo(
+    () => Array.from(new Set(meses.map((m) => inicioTemporada(m)))).sort((a, b) => a - b),
+    [meses]
+  );
 
   useEffect(() => {
     if (meses.length === 0) return;
-    if (anoSelecionado === null || !anos.includes(anoSelecionado)) {
-      setAnoSelecionado(meses[meses.length - 1].ano);
+    if (temporadaSelecionada === null || !temporadas.includes(temporadaSelecionada)) {
+      setTemporadaSelecionada(inicioTemporada(meses[meses.length - 1]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meses, anos]);
+  }, [meses, temporadas]);
+
+  const mesesDaTemporada = useMemo(
+    () => meses.filter((m) => inicioTemporada(m) === temporadaSelecionada),
+    [meses, temporadaSelecionada]
+  );
+
+  // Filtro de período independente, só pros cards de total do topo — não mexe
+  // na temporada nem na tabela por associação.
+  const [kpiMesInicioId, setKpiMesInicioId] = useState<string | null>(null);
+  const [kpiMesFimId, setKpiMesFimId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (meses.length === 0) return;
+    if (kpiMesInicioId === null && kpiMesFimId === null) {
+      setKpiMesInicioId(meses[0].id);
+      setKpiMesFimId(meses[meses.length - 1].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meses]);
+
+  const mesesDoFiltroKpi = useMemo(() => {
+    const idxInicio = meses.findIndex((m) => m.id === kpiMesInicioId);
+    const idxFim = meses.findIndex((m) => m.id === kpiMesFimId);
+    if (idxInicio === -1 || idxFim === -1) return meses;
+    const [lo, hi] = idxInicio <= idxFim ? [idxInicio, idxFim] : [idxFim, idxInicio];
+    return meses.slice(lo, hi + 1);
+  }, [meses, kpiMesInicioId, kpiMesFimId]);
 
   const lookup = useMemo(() => {
     const mapa = new Map<string, EduLancamento>();
@@ -145,31 +184,20 @@ export default function InvestimentoEducacaoPage() {
     try {
       const criado = await criarEduMes(novoNome, novoAno, ultimo.ordem + 1);
       setMeses((ms) => [...ms, criado]);
-      setAnoSelecionado(novoAno);
+      setTemporadaSelecionada(inicioTemporada(criado));
     } catch (e) {
       setErroAcao((e as Error).message);
     }
   }
 
-  /** Só oculta o mês da visualização (tabela e KPIs) — não apaga nada no banco. */
-  function alternarVisibilidadeMes(mesId: string) {
-    setMesesOcultos((atual) => {
-      const novo = new Set(atual);
-      if (novo.has(mesId)) novo.delete(mesId);
-      else novo.add(mesId);
-      return novo;
-    });
-    if (notaAberta && stringParaChave(notaAberta).mesId === mesId) fecharNota();
-  }
-
-  const idsMesesVisiveis = useMemo(() => new Set(mesesVisiveis.map((m) => m.id)), [mesesVisiveis]);
+  const idsMesesDoFiltroKpi = useMemo(() => new Set(mesesDoFiltroKpi.map((m) => m.id)), [mesesDoFiltroKpi]);
 
   let totalInvest = 0;
   let totalLeads = 0;
   let gastoMeta = 0;
   let gastoGoogle = 0;
   eduLancamentos.forEach((l) => {
-    if (!idsMesesVisiveis.has(l.mesId)) return;
+    if (!idsMesesDoFiltroKpi.has(l.mesId)) return;
     totalInvest += l.investimento || 0;
     totalLeads += l.leads || 0;
     if (l.investimento) {
@@ -186,10 +214,9 @@ export default function InvestimentoEducacaoPage() {
     }
   });
 
-  const mesesDoAno = mesesVisiveis.filter((m) => m.ano === anoSelecionado);
   const periodoLabel =
-    meses.length > 0
-      ? `${MES_ABREV[meses[0].nome]} ${meses[0].ano} – ${MES_ABREV[meses[meses.length - 1].nome]} ${meses[meses.length - 1].ano}`
+    mesesDaTemporada.length > 0
+      ? `${MES_ABREV[mesesDaTemporada[0].nome]} ${mesesDaTemporada[0].ano} – ${MES_ABREV[mesesDaTemporada[mesesDaTemporada.length - 1].nome]} ${mesesDaTemporada[mesesDaTemporada.length - 1].ano}`
       : "—";
 
   return (
@@ -210,7 +237,7 @@ export default function InvestimentoEducacaoPage() {
       ) : erro ? (
         <ErroState mensagem={erro} onRetry={recarregarTudo} />
       ) : (
-        <div className="px-7 pt-6 pb-[60px] max-w-[1120px] mx-auto w-full flex flex-col gap-5">
+        <div className="px-7 pt-6 pb-[60px] max-w-[1440px] mx-auto w-full flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="font-heading text-[20px] font-bold m-0">Investimento em Educação</h1>
@@ -219,20 +246,48 @@ export default function InvestimentoEducacaoPage() {
             <div className="flex items-center gap-2.5">
               <span className="font-mono text-[11px] text-text-faint-2">{periodoLabel}</span>
               <div className="flex gap-1">
-                {anos.map((ano) => (
+                {temporadas.map((t) => (
                   <button
-                    key={ano}
-                    onClick={() => setAnoSelecionado(ano)}
+                    key={t}
+                    onClick={() => setTemporadaSelecionada(t)}
+                    title="Filtrar por temporada (junho a fevereiro)"
                     className={
-                      "font-mono text-[11.5px] font-semibold rounded-sm py-1 px-2.5 cursor-pointer border " +
-                      (ano === anoSelecionado ? "bg-ink text-lima-ui border-ink" : "bg-transparent text-text-faint-2 border-input-border")
+                      "font-mono text-[11.5px] font-semibold rounded-pill py-1 px-3 cursor-pointer border " +
+                      (t === temporadaSelecionada ? "bg-ink text-lima-ui border-ink" : "bg-transparent text-text-faint-2 border-input-border")
                     }
                   >
-                    {ano}
+                    Temporada {rotuloTemporada(t)}
                   </button>
                 ))}
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[12px] text-text-faint-2">Período dos totais abaixo:</span>
+            <select
+              value={kpiMesInicioId ?? ""}
+              onChange={(e) => setKpiMesInicioId(e.target.value)}
+              className="font-mono text-[12px] py-1 px-2 border border-input-border rounded-sm bg-surface"
+            >
+              {meses.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {MES_ABREV[m.nome]} {m.ano}
+                </option>
+              ))}
+            </select>
+            <span className="text-[12px] text-text-faint-2">até</span>
+            <select
+              value={kpiMesFimId ?? ""}
+              onChange={(e) => setKpiMesFimId(e.target.value)}
+              className="font-mono text-[12px] py-1 px-2 border border-input-border rounded-sm bg-surface"
+            >
+              {meses.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {MES_ABREV[m.nome]} {m.ano}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-wrap gap-2.5">
@@ -264,10 +319,7 @@ export default function InvestimentoEducacaoPage() {
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-[12px] text-text-faint-2">
-                Clique no marcador • de qualquer valor para adicionar ou ver um comentário. Clique num mês abaixo pra
-                ocultá-lo da tabela e dos totais — nada é apagado, é só filtro.
-              </span>
+              <span className="text-[12px] text-text-faint-2">Clique no marcador • de qualquer valor para adicionar ou ver um comentário.</span>
               {isEditor && (
                 <button
                   onClick={adicionarMes}
@@ -278,33 +330,11 @@ export default function InvestimentoEducacaoPage() {
               )}
             </div>
 
-            <div className="flex gap-1.5 flex-wrap">
-              {meses.map((m) => {
-                const oculto = mesesOcultos.has(m.id);
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => alternarVisibilidadeMes(m.id)}
-                    title={oculto ? "Mostrar este mês" : "Ocultar este mês (não apaga nada)"}
-                    className={
-                      "flex items-center gap-1.5 font-mono text-[11px] rounded-pill py-1 pl-2.5 pr-2 border cursor-pointer " +
-                      (oculto
-                        ? "text-text-faint-2 bg-workspace border-border line-through opacity-60"
-                        : "text-text-muted bg-surface border-border")
-                    }
-                  >
-                    {MES_ABREV[m.nome]} {m.ano}
-                    <span className="not-italic no-underline">{oculto ? "＋" : "✕"}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(460px,1fr))" }}>
+            <div className="flex flex-col gap-3.5">
               {unidades.map((u) => {
-                const colunas = mesesDoAno.map((m) => lookup.get(`${u.id}|${m.id}`));
-                const somaInvest = mesesVisiveis.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.investimento || 0), 0);
-                const somaLeads = mesesVisiveis.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.leads || 0), 0);
+                const colunas = mesesDaTemporada.map((m) => lookup.get(`${u.id}|${m.id}`));
+                const somaInvest = mesesDaTemporada.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.investimento || 0), 0);
+                const somaLeads = mesesDaTemporada.reduce((s, m) => s + (lookup.get(`${u.id}|${m.id}`)?.leads || 0), 0);
 
                 const notaAtivaChave = notaAberta && stringParaChave(notaAberta);
                 const notaAtiva = notaAtivaChave && notaAtivaChave.unidadeId === u.id ? notaAtivaChave : null;
@@ -322,12 +352,12 @@ export default function InvestimentoEducacaoPage() {
                       <span className="font-heading text-[14.5px] font-bold">{u.nome}</span>
                       <span className="font-mono text-[11.5px] text-text-faint">{BRL(somaInvest)}</span>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="px-1 pb-1">
                       <table className="border-collapse text-[12.5px]">
                         <thead>
                           <tr className="font-mono text-[9.5px] tracking-[0.06em] uppercase text-text-faint-2">
                             <th className="text-left font-normal py-2 pt-2 pb-1.5 px-2.5 min-w-[92px] sticky left-0 bg-surface z-[1] whitespace-nowrap" />
-                            {mesesDoAno.map((m) => (
+                            {mesesDaTemporada.map((m) => (
                               <th key={m.id} className="text-right font-normal py-2 pt-2 pb-1.5 px-2 whitespace-nowrap">
                                 {MES_ABREV[m.nome]}
                               </th>
@@ -341,7 +371,7 @@ export default function InvestimentoEducacaoPage() {
                           <tr>
                             <td className="py-1 px-2.5 text-text-muted text-[11.5px] sticky left-0 bg-surface z-[1]">Investimento</td>
                             {colunas.map((l, i) => {
-                              const mes = mesesDoAno[i];
+                              const mes = mesesDaTemporada[i];
                               const temNota = !!l?.notaInvestimento;
                               return (
                                 <td key={mes.id} className="py-1 px-1">
@@ -378,7 +408,7 @@ export default function InvestimentoEducacaoPage() {
                           <tr>
                             <td className="py-1 px-2.5 text-text-muted text-[11.5px] sticky left-0 bg-surface z-[1]">Leads</td>
                             {colunas.map((l, i) => {
-                              const mes = mesesDoAno[i];
+                              const mes = mesesDaTemporada[i];
                               const temNota = !!l?.notaLeads;
                               return (
                                 <td key={mes.id} className="py-1 px-1">
@@ -419,7 +449,7 @@ export default function InvestimentoEducacaoPage() {
                           <tr>
                             <td className="py-1 pb-2 px-2.5 text-text-faint-2 text-[11.5px] sticky left-0 bg-surface z-[1]">Custo / lead</td>
                             {colunas.map((l, i) => {
-                              const mes = mesesDoAno[i];
+                              const mes = mesesDaTemporada[i];
                               const custo = l?.investimento && l?.leads ? l.investimento / l.leads : null;
                               return (
                                 <td key={mes.id} className="py-1 px-2 pb-2 text-right font-mono text-[12px] text-text-faint-2 whitespace-nowrap">
