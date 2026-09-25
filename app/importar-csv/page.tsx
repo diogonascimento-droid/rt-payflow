@@ -147,6 +147,14 @@ export default function ImportarCsvPage() {
   const contagemPorCartao = new Map<string, number>();
   novas.forEach((t) => contagemPorCartao.set(t.cartao, (contagemPorCartao.get(t.cartao) || 0) + 1));
 
+  const cartoesDesconhecidosUnicos = useMemo(() => {
+    const set = new Set<string>();
+    novas.forEach((t) => {
+      if (!CARTAO_NOMES.includes(t.cartao)) set.add(t.cartao);
+    });
+    return set;
+  }, [novas, CARTAO_NOMES]);
+
   const buscaLower = buscaImportadas.toLowerCase();
   const importadasFiltradas = buscaLower ? importadas.filter((t) => (t.data + t.id + t.cartao).toLowerCase().includes(buscaLower)) : importadas;
 
@@ -545,9 +553,17 @@ export default function ImportarCsvPage() {
               </button>
               <button
                 onClick={confirmarImportacao}
-                className="ml-auto font-body text-[14px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2.5 px-[22px] cursor-pointer whitespace-nowrap"
+                disabled={cartoesDesconhecidosUnicos.size > 0}
+                title={
+                  cartoesDesconhecidosUnicos.size > 0
+                    ? "Cadastre (ou associe) todos os cartões não reconhecidos antes de confirmar"
+                    : undefined
+                }
+                className="ml-auto font-body text-[14px] font-bold bg-lima-ui text-ink border-none rounded-btn py-2.5 px-[22px] cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Confirmar importação · {novas.length} novas
+                {cartoesDesconhecidosUnicos.size > 0
+                  ? `Cadastre ${cartoesDesconhecidosUnicos.size} cartão${cartoesDesconhecidosUnicos.size > 1 ? "ões" : ""} pra continuar`
+                  : `Confirmar importação · ${novas.length} novas`}
               </button>
             </div>
           </div>

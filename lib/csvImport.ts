@@ -15,6 +15,15 @@ function formaIgnorada(formaPagamento: string): boolean {
   return FORMAS_IGNORADAS.has(formaPagamento.trim().toLowerCase());
 }
 
+/** O Meta às vezes exporta a "Forma de pagamento" com espaço sem quebra
+ * (NBSP,  ) em vez de espaço normal ao redor dos "····" — visualmente
+ * idêntico, mas quebra qualquer comparação exata de string (ex.: o filtro
+ * de cartão, que compara com o rótulo gerado no cadastro usando espaço
+ * normal). Normaliza pra nunca gravar esse tipo de caractere invisível. */
+function normalizarEspacos(s: string): string {
+  return s.replace(/[  -​  　]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function parseCsvLine(line: string): string[] {
   const out: string[] = [];
   let cur = "";
@@ -78,7 +87,7 @@ export function parseMetaCsv(text: string): ResultadoCsv {
 
     const formaMatch = line.match(/^Forma de pagamento:\s*(.+)$/i);
     if (formaMatch) {
-      formaAtual = formaMatch[1].trim();
+      formaAtual = normalizarEspacos(formaMatch[1]);
       dentroTabela = false;
       continue;
     }
@@ -106,7 +115,7 @@ export function parseMetaCsv(text: string): ResultadoCsv {
     if (!cols[0] || !cols[1] || colValorIdx === -1) continue;
     const valor = parseValorBR(cols[colValorIdx]);
     if (isNaN(valor)) continue;
-    const cartao = colFormaIdx !== -1 ? cols[colFormaIdx] : formaAtual;
+    const cartao = normalizarEspacos(colFormaIdx !== -1 ? cols[colFormaIdx] : formaAtual);
     if (formaIgnorada(cartao)) {
       linhasIgnoradas++;
       continue;
