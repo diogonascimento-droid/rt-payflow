@@ -65,6 +65,7 @@ export default function ImportarCsvPage() {
   const [contaTrocada, setContaTrocada] = useState<string | null>(null);
   const [cadastroAberto, setCadastroAberto] = useState<string | null>(null);
   const [bandeiraEscolhida, setBandeiraEscolhida] = useState<Record<string, string>>({});
+  const [cartaoAssociado, setCartaoAssociado] = useState<Record<string, string>>({});
   const [mostrarImportadas, setMostrarImportadas] = useState(false);
   const [buscaImportadas, setBuscaImportadas] = useState("");
   const [contaMapeada, setContaMapeada] = useState("");
@@ -102,6 +103,7 @@ export default function ImportarCsvPage() {
       return;
     }
     setArquivo({ nome, contaId, contaNome, periodo, transacoes, linhasIgnoradas });
+    setCartaoAssociado({});
     setContaTrocada(null);
     setMostrarImportadas(false);
     setBuscaImportadas("");
@@ -143,6 +145,8 @@ export default function ImportarCsvPage() {
   const importadas = arquivo ? arquivo.transacoes.filter((t) => !t.nova) : [];
   const totalNovasNum = novas.reduce((s, t) => s + t.valor, 0);
 
+  const cartaoEfetivo = (raw: string) => cartaoAssociado[raw] || raw;
+
   const cartaoDesconhecidoVistos = new Set<string>();
   const contagemPorCartao = new Map<string, number>();
   novas.forEach((t) => contagemPorCartao.set(t.cartao, (contagemPorCartao.get(t.cartao) || 0) + 1));
@@ -150,10 +154,10 @@ export default function ImportarCsvPage() {
   const cartoesDesconhecidosUnicos = useMemo(() => {
     const set = new Set<string>();
     novas.forEach((t) => {
-      if (!CARTAO_NOMES.includes(t.cartao)) set.add(t.cartao);
+      if (!CARTAO_NOMES.includes(cartaoAssociado[t.cartao] || t.cartao)) set.add(t.cartao);
     });
     return set;
-  }, [novas, CARTAO_NOMES]);
+  }, [novas, CARTAO_NOMES, cartaoAssociado]);
 
   const buscaLower = buscaImportadas.toLowerCase();
   const importadasFiltradas = buscaLower ? importadas.filter((t) => (t.data + t.id + t.cartao).toLowerCase().includes(buscaLower)) : importadas;
@@ -178,7 +182,7 @@ export default function ImportarCsvPage() {
           data: t.data,
           plataforma: "Meta",
           conta: contaFinal,
-          cartao: t.cartao,
+          cartao: cartaoEfetivo(t.cartao),
           valor: t.valor,
           origem: "csv" as const,
           idTransacaoExterna: t.id,
@@ -452,7 +456,8 @@ export default function ImportarCsvPage() {
               <span className="w-[110px] shrink-0 text-right">Valor</span>
             </div>
             {novas.map((t, idx) => {
-              const desconhecido = !CARTAO_NOMES.includes(t.cartao);
+              const desconhecido = !CARTAO_NOMES.includes(cartaoEfetivo(t.cartao));
+              const registravel = /^\d{4}$/.test(parseCartaoCsv(t.cartao).final4);
               const jaVisto = cartaoDesconhecidoVistos.has(t.cartao);
               const primeiraOcorrencia = desconhecido && !jaVisto;
               if (desconhecido) cartaoDesconhecidoVistos.add(t.cartao);
@@ -462,12 +467,30 @@ export default function ImportarCsvPage() {
                   <div className="flex items-center py-2.5 px-[18px] border-b border-[#F6F7F4] border-l-[3px] border-l-lima-ui bg-[#FFFDF0]">
                     <span className="font-mono text-[12.5px] w-[88px] shrink-0">{t.data}</span>
                     <span className="font-mono text-[11.5px] text-text-faint flex-1 min-w-0 truncate">{t.id}</span>
-                    <span className="w-[150px] shrink-0 font-mono text-[12.5px] whitespace-nowrap">{t.cartao}</span>
+                    <span className="w-[150px] shrink-0 font-mono text-[12.5px] whitespace-nowrap">{cartaoEfetivo(t.cartao)}</span>
                     <span className="font-mono text-[13.5px] font-medium w-[110px] shrink-0 text-right tabular-nums">{BRL(t.valor)}</span>
                   </div>
                   {primeiraOcorrencia && (
                     <div className="py-0 px-[18px] pl-[88px] pb-2.5 bg-[#FFFDF0] border-b border-[#F6F7F4]">
-                      {cadastroAberto === chave ? (
+                      {!registravel ? (
+                        <div className="flex items-center gap-2 flex-wrap bg-surface border border-warning-border rounded-sm py-2.5 px-3">
+                          <span className="text-[12.5px] text-warning">
+                            O Meta não informou o cartão ({contagemPorCartao.get(t.cartao) || 1}×). Associar a:
+                          </span>
+                          <select
+                            value=""
+                            onChange={(e) => e.target.value && setCartaoAssociado((m) => ({ ...m, [t.cartao]: e.target.value }))}
+                            className="text-[13px] py-1.5 px-2 border border-input-border rounded-sm"
+                          >
+                            <option value="">Escolha o cartão…</option>
+                            {CARTAO_NOMES.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : cadastroAberto === chave ? (
                         <div className="flex items-center gap-2 flex-wrap bg-surface border border-warning-border rounded-sm py-2.5 px-3">
                           <span className="text-[12.5px] text-warning">Cadastrar {t.cartao} como</span>
                           <select
