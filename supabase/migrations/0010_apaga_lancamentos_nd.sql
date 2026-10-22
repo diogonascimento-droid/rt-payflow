@@ -4,8 +4,10 @@
 -- isto limpa o que entrou antes disso. Também remove o cadastro de cartão
 -- "N/D" criado por engano numa importação, se não sobrar lançamento usando.
 
+-- Pega "N/D" e também "N/D ···· N/D" (linhas N/D associadas ao cartão "N/D"
+-- cadastrado por engano).
 delete from lancamentos
-where upper(trim(cartao)) = 'N/D';
+where cartao ~* '^\s*N/D';
 
 delete from cartoes
 where upper(trim(bandeira)) = 'N/D'
