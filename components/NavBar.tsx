@@ -11,7 +11,6 @@ const ITENS = [
   { href: "/novo-lancamento", label: "Novo lançamento", somenteEditor: true },
   { href: "/importar-csv", label: "Importar CSV", somenteEditor: true },
   { href: "/cadastros", label: "Cadastros", somenteEditor: false },
-  { href: "/investimento-educacao", label: "Educação", somenteEditor: false },
 ];
 
 export function NavBar({ right }: { right?: React.ReactNode }) {
