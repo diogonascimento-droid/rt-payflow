@@ -20,6 +20,7 @@ export type LancamentoRow = {
   conta: string;
   cartao: string;
   valor: number;
+  moeda: string;
   origem: "manual" | "csv";
   obs: string | null;
   id_transacao_externa: string | null;
@@ -34,6 +35,7 @@ export function rowToLancamento(r: LancamentoRow): Lancamento {
     conta: r.conta,
     cartao: r.cartao,
     valor: Number(r.valor),
+    moeda: r.moeda || "BRL",
     origem: r.origem,
     obs: r.obs ?? undefined,
     idTransacaoExterna: r.id_transacao_externa ?? undefined,

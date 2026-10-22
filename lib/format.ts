@@ -1,6 +1,19 @@
 export const BRL = (n: number): string =>
   "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const SIMBOLO_MOEDA: Record<string, string> = { BRL: "R$", USD: "US$", EUR: "€" };
+
+/** Formata um valor na moeda dele (BRL = "R$ 1,00", USD = "US$ 1,00"). */
+export const fmtMoeda = (n: number, moeda: string = "BRL"): string =>
+  (SIMBOLO_MOEDA[moeda] || moeda) + " " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Soma por moeda — nunca mistura reais com dólares. */
+export const somarPorMoeda = (itens: { valor: number; moeda: string }[]): Record<string, number> => {
+  const t: Record<string, number> = {};
+  itens.forEach((i) => (t[i.moeda] = (t[i.moeda] || 0) + i.valor));
+  return t;
+};
+
 export const fmtData = (d: Date): string =>
   String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
 

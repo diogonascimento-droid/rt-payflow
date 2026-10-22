@@ -16,7 +16,7 @@ import { useCombobox } from "@/lib/useCombobox";
 import { useLancamentos, usePlataformas, useContas, useCartoes } from "@/lib/supabase/hooks";
 import { atualizarLancamento, excluirLancamentos } from "@/lib/supabase/queries";
 import { filtrarPorPeriodo, agruparPorDia } from "@/lib/aggregate";
-import { BRL, cartaoRotulo } from "@/lib/format";
+import { BRL, cartaoRotulo, fmtMoeda, somarPorMoeda } from "@/lib/format";
 import { Lancamento } from "@/lib/types";
 
 type Confirmacao = { tipo: "single" | "lote"; ids: string[]; texto: string };
@@ -60,7 +60,7 @@ export default function LancamentosPage() {
     return out;
   }, [lancamentos, period.periodoInicio, period.periodoFim, plataforma, conta, cartao, origem]);
 
-  const totalFiltrado = filtrados.reduce((s, l) => s + l.valor, 0);
+  const totaisFiltrados = somarPorMoeda(filtrados);
   const idsFiltrados = filtrados.map((l) => l.id);
   const selecionadosVisiveis = idsFiltrados.filter((id) => selecionados[id]);
   const todosSelecionados = idsFiltrados.length > 0 && selecionadosVisiveis.length === idsFiltrados.length;
@@ -225,7 +225,7 @@ export default function LancamentosPage() {
                       onToggle={() => setSelecionados((s) => ({ ...s, [l.id]: !s[l.id] }))}
                       onEditar={() => setEditando(l)}
                       onExcluir={() =>
-                        setConfirmando({ tipo: "single", ids: [l.id], texto: `Excluir o lançamento de ${l.data} · ${l.conta} · ${BRL(l.valor)}? Essa ação não pode ser desfeita.` })
+                        setConfirmando({ tipo: "single", ids: [l.id], texto: `Excluir o lançamento de ${l.data} · ${l.conta} · ${fmtMoeda(l.valor, l.moeda)}? Essa ação não pode ser desfeita.` })
                       }
                     />
                   ))}
@@ -257,7 +257,7 @@ export default function LancamentosPage() {
 
       <div className="fixed left-0 right-0 bottom-0 bg-surface border-t border-border py-3 px-7 flex items-center gap-3 z-[5]">
         <span className="font-mono text-[12.5px] text-text-muted">{filtrados.length} lançamentos filtrados</span>
-        <span className="ml-auto font-mono text-[16px] font-semibold tabular-nums">{BRL(totalFiltrado)}</span>
+        <span className="ml-auto font-mono text-[16px] font-semibold tabular-nums">{Object.entries(totaisFiltrados).map(([m, v]) => fmtMoeda(v, m)).join("  +  ") || BRL(0)}</span>
       </div>
       </>
       )}
@@ -318,7 +318,7 @@ function LinhaLancamento({
       <td className="py-2 px-1.5 text-[12.5px] text-text-muted whitespace-nowrap">{l.plataforma}</td>
       <td className="py-2 px-1.5 truncate max-w-[1px]">{l.conta}</td>
       <td className="py-2 px-1.5 font-mono text-[12px] whitespace-nowrap">{l.cartao}</td>
-      <td className="py-2 px-1.5 text-right font-mono text-[13px] font-medium tabular-nums whitespace-nowrap">{BRL(l.valor)}</td>
+      <td className="py-2 px-1.5 text-right font-mono text-[13px] font-medium tabular-nums whitespace-nowrap">{fmtMoeda(l.valor, l.moeda)}</td>
       <td className="py-2 px-1.5">
         <OriginBadge origem={l.origem} />
       </td>
@@ -372,7 +372,7 @@ function RowGroup({
           onToggle={() => setSelecionados((s) => ({ ...s, [l.id]: !s[l.id] }))}
           onEditar={() => setEditando(l)}
           onExcluir={() =>
-            setConfirmando({ tipo: "single", ids: [l.id], texto: `Excluir o lançamento de ${l.data} · ${l.conta} · ${BRL(l.valor)}? Essa ação não pode ser desfeita.` })
+            setConfirmando({ tipo: "single", ids: [l.id], texto: `Excluir o lançamento de ${l.data} · ${l.conta} · ${fmtMoeda(l.valor, l.moeda)}? Essa ação não pode ser desfeita.` })
           }
         />
       ))}

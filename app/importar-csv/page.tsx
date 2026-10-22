@@ -18,7 +18,7 @@ import {
   criarCartao,
   atualizarConta,
 } from "@/lib/supabase/queries";
-import { BRL, cartaoRotulo } from "@/lib/format";
+import { BRL, cartaoRotulo, fmtMoeda, somarPorMoeda } from "@/lib/format";
 import { parseMetaCsv, LinhaCsv } from "@/lib/csvImport";
 
 type Step = "upload" | "lendo" | "erro" | "preview" | "resultado";
@@ -142,6 +142,8 @@ export default function ImportarCsvPage() {
   const novas = arquivo ? arquivo.transacoes.filter((t) => t.nova) : [];
   const importadas = arquivo ? arquivo.transacoes.filter((t) => !t.nova) : [];
   const totalNovasNum = novas.reduce((s, t) => s + t.valor, 0);
+  const totaisNovos = somarPorMoeda(novas);
+  const totaisNovosTexto = Object.entries(totaisNovos).map(([m, v]) => fmtMoeda(v, m)).join(" + ");
 
   const cartaoDesconhecidoVistos = new Set<string>();
   const contagemPorCartao = new Map<string, number>();
@@ -180,12 +182,13 @@ export default function ImportarCsvPage() {
           conta: contaFinal,
           cartao: t.cartao,
           valor: t.valor,
+          moeda: t.moeda,
           origem: "csv" as const,
           idTransacaoExterna: t.id,
           loteId: lote.id,
         }))
       );
-      setResultado({ qtd: novas.length, valor: BRL(totalNovasNum), conta: contaFinal, arquivo: arquivo.nome, loteId: lote.id });
+      setResultado({ qtd: novas.length, valor: totaisNovosTexto, conta: contaFinal, arquivo: arquivo.nome, loteId: lote.id });
       setResultadoDesfeito(false);
       setStep("resultado");
       setErroAcao(null);
@@ -396,8 +399,8 @@ export default function ImportarCsvPage() {
               <span className="font-mono text-[12px] text-text-faint">Período do relatório: {arquivo.periodo}</span>
               {arquivo.linhasIgnoradas > 0 && (
                 <span className="font-mono text-[11.5px] text-text-faint-2">
-                  {arquivo.linhasIgnoradas} linha{arquivo.linhasIgnoradas > 1 ? "s" : ""} de crédito Meta ignorada
-                  {arquivo.linhasIgnoradas > 1 ? "s" : ""} (não é cobrança de cartão)
+                  {arquivo.linhasIgnoradas} linha{arquivo.linhasIgnoradas > 1 ? "s" : ""} sem cartão (N/D ou crédito) ignorada
+                  {arquivo.linhasIgnoradas > 1 ? "s" : ""} (não entram no cálculo)
                 </span>
               )}
             </div>
@@ -440,7 +443,7 @@ export default function ImportarCsvPage() {
             </div>
             <div className="py-4 px-[18px]">
               <div className="font-mono text-[10.5px] tracking-[0.1em] uppercase text-text-faint">A adicionar</div>
-              <div className="font-display text-[30px] tabular-nums text-[#8A6D00] whitespace-nowrap tracking-[0.01em]">{BRL(totalNovasNum)}</div>
+              <div className="font-display text-[30px] tabular-nums text-[#8A6D00] whitespace-nowrap tracking-[0.01em]">{totaisNovosTexto}</div>
             </div>
           </div>
 
@@ -463,7 +466,7 @@ export default function ImportarCsvPage() {
                     <span className="font-mono text-[12.5px] w-[88px] shrink-0">{t.data}</span>
                     <span className="font-mono text-[11.5px] text-text-faint flex-1 min-w-0 truncate">{t.id}</span>
                     <span className="w-[150px] shrink-0 font-mono text-[12.5px] whitespace-nowrap">{t.cartao}</span>
-                    <span className="font-mono text-[13.5px] font-medium w-[110px] shrink-0 text-right tabular-nums">{BRL(t.valor)}</span>
+                    <span className="font-mono text-[13.5px] font-medium w-[110px] shrink-0 text-right tabular-nums">{fmtMoeda(t.valor, t.moeda)}</span>
                   </div>
                   {primeiraOcorrencia && (
                     <div className="py-0 px-[18px] pl-[88px] pb-2.5 bg-[#FFFDF0] border-b border-[#F6F7F4]">
@@ -530,7 +533,7 @@ export default function ImportarCsvPage() {
                     <span className="font-mono text-[12px] w-[88px] shrink-0">{t.data}</span>
                     <span className="font-mono text-[11.5px] flex-1 min-w-0 truncate">{t.id}</span>
                     <span className="font-mono text-[12px] w-[150px] shrink-0 whitespace-nowrap">{t.cartao}</span>
-                    <span className="font-mono text-[13px] w-[110px] shrink-0 text-right tabular-nums">{BRL(t.valor)}</span>
+                    <span className="font-mono text-[13px] w-[110px] shrink-0 text-right tabular-nums">{fmtMoeda(t.valor, t.moeda)}</span>
                   </div>
                 ))}
                 {buscaLower && importadasFiltradas.length === 0 && (

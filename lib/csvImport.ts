@@ -1,16 +1,15 @@
-export type LinhaCsv = { data: string; id: string; cartao: string; valor: number };
+export type LinhaCsv = { data: string; id: string; cartao: string; valor: number; moeda: string };
 
 export type ResultadoCsv =
   | { ok: true; contaId: string; periodo: string; rows: LinhaCsv[]; linhasIgnoradas: number }
   | { ok: false; tipo: "invalido" | "vazio" | "conta_desconhecida"; contaId?: string; periodo?: string; rows?: LinhaCsv[] };
 
-/** O relatório do Meta também traz formas de pagamento que não são cartão
- * (saldo de cupom/crédito de anúncio, não cobrança real no cartão). O RT
- * PayFlow só controla cartão, então essas linhas são ignoradas na
- * importação — mas só essa forma específica; qualquer outra coisa (mesmo
- * "N/D", quando o Meta não identifica o cartão de uma cobrança real) segue
- * pro fluxo normal de "cartão não cadastrado" pra não sumir dinheiro. */
-const FORMAS_IGNORADAS = new Set(["crédito para anúncio", "credito para anuncio"]);
+/** O relatório do Meta também traz linhas que não são cobrança no cartão:
+ * crédito de anúncio e "N/D" (gasto debitado do saldo que já foi pago com o
+ * cartão numa recarga — o dinheiro entra no cartão só na recarga, que é a
+ * linha com número de cartão). O RT PayFlow só computa linhas com cartão
+ * identificado, então essas são ignoradas na importação. */
+const FORMAS_IGNORADAS = new Set(["crédito para anúncio", "credito para anuncio", "n/d"]);
 function formaIgnorada(formaPagamento: string): boolean {
   return FORMAS_IGNORADAS.has(formaPagamento.trim().toLowerCase());
 }
@@ -78,6 +77,7 @@ export function parseMetaCsv(text: string): ResultadoCsv {
   let dentroTabela = false;
   let colFormaIdx = -1;
   let colValorIdx = -1;
+  let colMoedaIdx = -1;
   let encontrouTabela = false;
   let linhasIgnoradas = 0;
 
@@ -99,6 +99,7 @@ export function parseMetaCsv(text: string): ResultadoCsv {
       const cabecalho = parseCsvLine(line).map((c) => c.trim().toLowerCase());
       colFormaIdx = cabecalho.findIndex((c) => c.startsWith("forma de pagamento"));
       colValorIdx = cabecalho.findIndex((c) => c === "valor");
+      colMoedaIdx = cabecalho.findIndex((c) => c === "moeda");
       dentroTabela = true;
       encontrouTabela = true;
       continue;
@@ -120,7 +121,8 @@ export function parseMetaCsv(text: string): ResultadoCsv {
       linhasIgnoradas++;
       continue;
     }
-    rows.push({ data: cols[0], id: cols[1], cartao, valor });
+    const moeda = (colMoedaIdx !== -1 ? cols[colMoedaIdx] : "").trim().toUpperCase() || "BRL";
+    rows.push({ data: cols[0], id: cols[1], cartao, valor, moeda });
   }
 
   if (!encontrouTabela) return { ok: false, tipo: "invalido" };

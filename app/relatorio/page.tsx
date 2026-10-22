@@ -7,16 +7,18 @@ import { PeriodPicker } from "@/components/PeriodPicker";
 import { useLancamentos } from "@/lib/supabase/hooks";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { filtrarPorPeriodo, agruparPorCartao, agruparPorConta } from "@/lib/aggregate";
-import { BRL, fmtData } from "@/lib/format";
+import { BRL, fmtData, fmtMoeda, somarPorMoeda } from "@/lib/format";
 import { temTagInvestimentoRT } from "@/lib/investimentoRT";
 
 export default function RelatorioPage() {
   const { lancamentos, carregando, erro, recarregar } = useLancamentos();
   const period = usePeriod(undefined, useMemo(() => lancamentos.map((l) => l.data), [lancamentos]));
-  const doPeriodo = useMemo(
+  const noPeriodo = useMemo(
     () => filtrarPorPeriodo(lancamentos, period.periodoInicio, period.periodoFim),
     [lancamentos, period.periodoInicio, period.periodoFim]
   );
+  const doPeriodo = useMemo(() => noPeriodo.filter((l) => l.moeda === "BRL"), [noPeriodo]);
+  const outrasMoedas = useMemo(() => somarPorMoeda(noPeriodo.filter((l) => l.moeda !== "BRL")), [noPeriodo]);
 
   const cartoes = useMemo(() => agruparPorCartao(doPeriodo), [doPeriodo]);
   const contas = useMemo(() => agruparPorConta(doPeriodo), [doPeriodo]);
@@ -170,7 +172,10 @@ export default function RelatorioPage() {
 
           <div className="mt-auto pt-3.5 border-t border-[#B8B8B0] flex justify-between font-mono text-[8.5px] text-[#54544A]">
             <span>RT PayFlow · relatório gerado agora</span>
-            <span>Valores somados por data de lançamento — não correspondem à fatura de cada cartão</span>
+            <span>
+              Valores somados por data de lançamento — não correspondem à fatura de cada cartão
+              {Object.entries(outrasMoedas).map(([m, v]) => ` · não inclui ${fmtMoeda(v, m)} (${m}, à parte)`).join("")}
+            </span>
           </div>
         </section>
       </div>

@@ -10,7 +10,7 @@ import { useLancamentos } from "@/lib/supabase/hooks";
 import { useAuth } from "@/lib/supabase/useAuth";
 import { CarregandoState, ErroState } from "@/components/AsyncState";
 import { filtrarPorPeriodo, agruparPorCartao, agruparPorConta, agruparPorDiaContaCartao } from "@/lib/aggregate";
-import { BRL, fmtData } from "@/lib/format";
+import { BRL, fmtData, fmtMoeda, somarPorMoeda } from "@/lib/format";
 
 export default function VisaoGeralPage() {
   const { isEditor } = useAuth();
@@ -20,10 +20,14 @@ export default function VisaoGeralPage() {
   const [buscaGrupos, setBuscaGrupos] = useState("");
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
 
-  const doPeriodo = useMemo(
+  const noPeriodo = useMemo(
     () => filtrarPorPeriodo(lancamentos, period.periodoInicio, period.periodoFim),
     [lancamentos, period.periodoInicio, period.periodoFim]
   );
+  // Os totais e cards são em reais; lançamentos em outra moeda (ex.: USD) ficam
+  // à parte, sem conversão, pra nunca misturar R$ com US$.
+  const doPeriodo = useMemo(() => noPeriodo.filter((l) => l.moeda === "BRL"), [noPeriodo]);
+  const outrasMoedas = useMemo(() => somarPorMoeda(noPeriodo.filter((l) => l.moeda !== "BRL")), [noPeriodo]);
 
   const filtrados = useMemo(
     () => (filtroCartao ? doPeriodo.filter((l) => l.cartao === filtroCartao) : doPeriodo),
@@ -87,6 +91,9 @@ export default function VisaoGeralPage() {
           <KpiTile label="Lançamentos" value={String(nLanc)} hint={`${csv} CSV · ${manual} manuais`} />
           <KpiTile label="Total Meta" value={BRL(totalMeta)} />
           <KpiTile label="Total Google" value={BRL(totalGoogle)} />
+          {Object.entries(outrasMoedas).map(([moeda, v]) => (
+            <KpiTile key={moeda} label={`Em ${moeda} (à parte)`} value={fmtMoeda(v, moeda)} hint="sem conversão, fora dos totais em R$" />
+          ))}
           {semConta > 0 && !filtroCartao && (
             <div className="ml-auto flex items-center gap-2.5 bg-[#2A1D18] border border-[#4A2C22] text-[#F0A58F] rounded-sm py-2 px-3.5 text-[12.5px] whitespace-nowrap">
               {semConta} lançamento(s) sem conta vinculada

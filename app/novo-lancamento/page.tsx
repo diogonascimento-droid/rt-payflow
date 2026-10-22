@@ -103,6 +103,7 @@ export default function NovoLancamentoPage() {
         conta: form.conta,
         cartao: form.cartao,
         valor: form.centavos / 100,
+        moeda: "BRL",
         origem: "manual",
         obs: form.obs || undefined,
       });

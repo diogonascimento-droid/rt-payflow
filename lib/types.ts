@@ -6,7 +6,8 @@ export type Lancamento = {
   plataforma: string;
   conta: string;
   cartao: string;
-  valor: number; // reais
+  valor: number; // na moeda do lançamento (BRL = reais, USD = dólares), sem conversão
+  moeda: string; // "BRL" | "USD" | ...
   origem: Origem;
   obs?: string;
   idTransacaoExterna?: string;
